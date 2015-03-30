@@ -13,6 +13,7 @@ TODO
 
 * tests
 
+* add back-off logic to rpc
 
 MAYBE:
 * think about how to make lookups never fail in the face of concurrent updates

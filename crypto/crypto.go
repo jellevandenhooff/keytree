@@ -9,10 +9,10 @@ import (
 	"log"
 	"strings"
 
+	"github.com/agl/ed25519"
 	"golang.org/x/crypto/nacl/box"
 	"golang.org/x/crypto/scrypt"
 
-	"github.com/agl/ed25519"
 	"github.com/jellevandenhooff/keytree/encoding/base32"
 )
 
@@ -185,14 +185,16 @@ type Signer struct {
 	privateKey string
 }
 
-type testSignable struct{}
+type testSignable struct {
+	hash Hash
+}
 
 func (t *testSignable) SigningTypeName() string {
 	return "test"
 }
 
 func (t *testSignable) Hash() Hash {
-	return EmptyHash
+	return t.hash
 }
 
 func NewSigner(privateKey string) (*Signer, error) {
