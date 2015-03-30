@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"net"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
 	"github.com/jellevandenhooff/keytree/trie/dedup"
@@ -113,22 +111,26 @@ func main() {
 	}
 	rpc.HandleHTTP()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		history, _ := db.ReadSince(crypto.HashString("email:jelle@vandenhooff.name"), 0)
-		bytes, _ := json.MarshalIndent(history, "", "  ")
-		w.Write(bytes)
-	})
+	/*
+		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			history, _ := db.ReadSince(crypto.HashString("email:jelle@vandenhooff.name"), 0)
+			bytes, _ := json.MarshalIndent(history, "", "  ")
+			w.Write(bytes)
+		})
 
-	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		status := &Status{
-			PublicKey:  s.config.PublicKey,
-			Upstream:   s.config.Upstream,
-			TotalNodes: s.dedup.NumNodes(),
-		}
+		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
+			status := &Status{
+				PublicKey:  s.config.PublicKey,
+				Upstream:   s.config.Upstream,
+				TotalNodes: s.dedup.NumNodes(),
+			}
 
-		bytes, _ := json.MarshalIndent(status, "", "  ")
-		w.Write(bytes)
-	})
+			bytes, _ := json.MarshalIndent(status, "", "  ")
+			w.Write(bytes)
+		})
+	*/
+
+	s.addHandlers(http.DefaultServeMux)
 
 	http.Serve(socket, http.DefaultServeMux)
 	/*

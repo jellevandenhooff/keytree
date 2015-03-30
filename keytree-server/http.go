@@ -1,5 +1,59 @@
 package main
 
+import (
+	"encoding/json"
+	"io"
+	"net/http"
+	"strings"
+
+	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/wire"
+)
+
+func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	name := strings.TrimPrefix(r.URL.Path, "/lookup/")
+
+	var reply wire.LookupReply
+	request := &wire.LookupRequest{
+		Hash:       crypto.HashString(name),
+		PublicKeys: []string{s.config.PublicKey},
+	}
+	if err := s.Lookup(request, &reply); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		io.WriteString(w, err.Error())
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	bytes, _ := json.MarshalIndent(&reply, "", "  ")
+	w.Write(bytes)
+}
+
+func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
+
+}
+
+func (s *Server) addHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		s.handleIndex(w, r)
+	})
+
+	mux.HandleFunc("/lookup/", func(w http.ResponseWriter, r *http.Request) {
+		s.handleLookup(w, r)
+	})
+
+	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
+		s.handleSubmit(w, r)
+	})
+}
+
 /*
 	// const maxEntriesPerDump = 5000
 

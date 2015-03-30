@@ -213,7 +213,6 @@ func (s *Server) spawnTrackers(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	desired := make(map[string]string)
 	for _, serverInfo := range s.config.Upstream {
 		address := serverInfo.Address
 		publicKey := serverInfo.PublicKey
