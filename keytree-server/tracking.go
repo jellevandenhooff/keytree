@@ -13,8 +13,7 @@ import (
 )
 
 type tracker struct {
-	ctx    context.Context
-	cancel context.CancelFunc
+	ctx context.Context
 	// read-only
 	conn               *wire.KeyTreeClient
 	server             *Server

@@ -209,72 +209,47 @@ func (s *Server) cleanOldTries() {
 	}
 }
 
-func (s *Server) getConnFor(ctx context.Context, address string) (*wire.KeyTreeClient, error) {
-	client, err := rpc.DialHTTP("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		<-ctx.Done()
-		client.Close()
-	}()
-
-	return wire.NewKeyTreeClient(client), nil
-}
-
-func (s *Server) fixupTrackers(ctx context.Context) {
+func (s *Server) spawnTrackers(ctx context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	desired := make(map[string]string)
 	for _, serverInfo := range s.config.Upstream {
-		desired[serverInfo.PublicKey] = serverInfo.Address
-	}
+		address := serverInfo.Address
+		publicKey := serverInfo.PublicKey
 
-	for publicKey, tracker := range s.trackers {
-		address, found := desired[publicKey]
+		log.Printf("spawning tracker for %s at %s", publicKey, address)
 
-		if !found || tracker.address != address {
-			log.Printf("shutting down tracker for %s at %s", publicKey, tracker.address)
-			tracker.cancel()
-			delete(s.trackers, publicKey)
+		client, err := rpc.DialHTTP("tcp", address)
+		if err != nil {
+			log.Println(err)
+			continue
 		}
-	}
 
-	for publicKey, address := range desired {
-		if _, found := s.trackers[publicKey]; !found {
-			log.Printf("spawning tracker for %s at %s", publicKey, address)
+		go func() {
+			<-ctx.Done()
+			client.Close()
+		}()
 
-			newCtx, cancel := context.WithCancel(ctx)
+		conn := wire.NewKeyTreeClient(client)
 
-			conn, err := s.getConnFor(ctx, address)
-			if err != nil {
-				log.Println(err)
-				continue
-			}
-
-			t := &tracker{
-				ctx:    newCtx,
-				cancel: cancel,
-
-				conn:      conn,
-				server:    s,
-				address:   address,
-				publicKey: publicKey,
-				queue:     make(chan crypto.Hash, reconcileQueueSize),
-			}
-			s.trackers[publicKey] = t
-			go t.run()
+		t := &tracker{
+			ctx:       ctx,
+			conn:      conn,
+			server:    s,
+			address:   address,
+			publicKey: publicKey,
+			queue:     make(chan crypto.Hash, reconcileQueueSize),
 		}
+		s.trackers[publicKey] = t
+		go t.run()
 	}
 }
 
 func (s *Server) follow(ctx context.Context) error {
+	s.spawnTrackers(ctx)
 	for ctx.Err() == nil {
-		s.fixupTrackers(ctx)
 		s.cleanOldTries()
-
 		select {
 		case <-time.After(10 * time.Second):
 		case <-ctx.Done():
