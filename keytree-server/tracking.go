@@ -197,7 +197,7 @@ func (t *tracker) fetchAntiEntropy() (*trie.Node, error) {
 }
 
 func (t *tracker) run() error {
-	for i := 0; i < fixerParellism; i++ {
+	for i := 0; i < fixerParallelism; i++ {
 		go t.fixer()
 	}
 
