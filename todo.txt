@@ -1,0 +1,36 @@
+TODO
+* use glog
+* set timeouts on sockets?
+* status information
+
+* provide go and js API
+* web client
+
+* audit unlocks (should probably always be in defer)
+* audit dedup
+* make sure there is no html injection possible
+* check for memory leaks
+
+* tests
+
+
+MAYBE:
+* think about how to make lookups never fail in the face of concurrent updates
+* think about 'records travelling back in time' with lookups in clients
+* allow server admin to delete entries
+
+LATER:
+* add rate limits
+
+* allow for a pure lookup server mode, and make it always take e.g. the majority value
+* make publishing self optional?
+
+* allow chaining of replication
+* maybe perform database load in parallel or in batches
+* add an append-only log
+* make recovery mode automatic
+
+* parallelize update processing in server
+
+* allow runtime (re-)configuration of upstream, recovery mode
+* allow updates of upstream, perhaps by re-reading config file

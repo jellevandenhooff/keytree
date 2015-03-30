@@ -1,0 +1,133 @@
+package dkimproof
+
+import (
+	"errors"
+	"fmt"
+	"net"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/jellevandenhooff/dkim"
+	"github.com/jellevandenhooff/smtp"
+
+	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/unixtime"
+	"github.com/jellevandenhooff/keytree/wire"
+)
+
+type Server struct {
+	mu        sync.Mutex
+	domain    string
+	pending   map[string]*wire.DKIMUpdate
+	dnsClient dkim.DNSClient
+}
+
+func (s *Server) cleanOldPending() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	for k, v := range s.pending {
+		if v.Expiration < unixtime.Now() {
+			delete(s.pending, k)
+		}
+	}
+}
+
+func (s *Server) run() {
+	for {
+		s.cleanOldPending()
+		time.Sleep(10 * time.Second)
+	}
+}
+
+func (s *Server) handleMail(m *smtp.Mail) {
+	/*
+		mail_id := base32.EncodeToString(crypto.HashString(m.Mail).Bytes()[:8])
+		if err := ioutil.WriteFile(filepath.Join("received-emails", mail_id), []byte(m.Mail), 0644); err != nil {
+			log.Printf("could not store email: %s\n", err)
+		}
+	*/
+
+	// Hold on to err for later reporting
+	verified, err := dkim.ParseAndVerify(m.Mail, dkim.HeadersOnly, s.dnsClient)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	update := s.pending[strings.ToLower(m.To)]
+	if update == nil {
+		return
+	}
+
+	if err == nil {
+		err = CheckVerifiedEmail(verified, update.Statement)
+	}
+
+	if err != nil {
+		update.Status = append(update.Status, fmt.Sprintf("%s", err.Error()))
+		// update.Status = append(update.Status, fmt.Sprintf("%s (%s)", err.Error(), mail_id))
+		return
+	}
+
+	update.Proof = verified.CanonHeaders()
+}
+
+func (s *Server) DKIMPrepare(req *wire.DKIMPrepareRequest, reply *wire.DKIMPrepareReply) error {
+	if err := req.Check(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	email := crypto.GenerateRandomToken(6) + "@" + s.domain
+	s.pending[email] = &wire.DKIMUpdate{
+		Statement:  req.Statement,
+		Proof:      "",
+		Status:     nil,
+		Expiration: unixtime.Now() + 15*60,
+	}
+
+	reply.Email = email
+	return nil
+}
+
+func (s *Server) DKIMPoll(req *wire.DKIMPollRequest, reply *wire.DKIMPollReply) error {
+	if err := req.Check(); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	update, found := s.pending[req.Email]
+	if !found {
+		return errors.New("not found (expired?)")
+	}
+
+	reply.Proof = update.Proof
+	reply.Status = update.Status
+	reply.Expiration = update.Expiration
+	return nil
+}
+
+func RunServer(domain string, dnsClient dkim.DNSClient) (*Server, error) {
+	s := &Server{
+		domain:    domain,
+		pending:   make(map[string]*wire.DKIMUpdate),
+		dnsClient: dnsClient,
+	}
+
+	l, err := net.Listen("tcp", ":smtp")
+	if err != nil {
+		return nil, err
+	}
+
+	go smtp.Serve(domain, l, func(m *smtp.Mail) {
+		s.handleMail(m)
+	})
+	go s.run()
+
+	return s, nil
+}
