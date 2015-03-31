@@ -3,8 +3,8 @@ package wire
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -12,6 +12,8 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 )
+
+var ErrNotFound = errors.New("not found")
 
 func backoff(retries int) time.Duration {
 	backoff, max := 1*time.Second, 10*time.Second
@@ -29,6 +31,8 @@ func backoff(retries int) time.Duration {
 	}
 	return backoff
 }
+
+// TODO: set timeout on Client
 
 type client struct {
 	host       string
@@ -65,21 +69,21 @@ type KeyTreeClient struct {
 func decode(resp *http.Response, reply interface{}) error {
 	defer resp.Body.Close()
 
-	if err := json.NewDecoder(resp.Body).Decode(reply); err != nil {
-		return err
+	if resp.StatusCode != http.StatusOK {
+		return errors.New(resp.Status)
 	}
-	return nil
+
+	return json.NewDecoder(resp.Body).Decode(reply)
 }
 
 func (c *client) get(path string, reply interface{}) (err error) {
 	c.await()
 
 	defer func() {
-		log.Println(err.Error())
-		if err != nil && err.Error() != "not found" {
-			c.failure()
-		} else {
+		if err == nil {
 			c.success()
+		} else {
+			c.failure()
 		}
 	}()
 
@@ -95,11 +99,10 @@ func (c *client) post(path string, request, reply interface{}) (err error) {
 	c.await()
 
 	defer func() {
-		log.Println(err.Error())
-		if err != nil && err.Error() != "not found" {
-			c.failure()
-		} else {
+		if err == nil {
 			c.success()
+		} else {
+			c.failure()
 		}
 	}()
 
@@ -136,10 +139,11 @@ func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
 	if err := c.client.get(fmt.Sprintf("/trienode?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
-	if reply != nil {
-		if err := reply.Check(); err != nil {
-			return nil, err
-		}
+	if reply == nil {
+		return nil, ErrNotFound
+	}
+	if err := reply.Check(); err != nil {
+		return nil, err
 	}
 	return reply, nil
 }
@@ -156,14 +160,17 @@ func (c *KeyTreeClient) Root() (*SignedRoot, error) {
 }
 
 func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
-	var reply UpdateBatch
+	var reply *UpdateBatch
 	if err := c.client.get(fmt.Sprintf("/updatebatch?hash=%s", h), &reply); err != nil {
 		return nil, err
+	}
+	if reply == nil {
+		return nil, ErrNotFound
 	}
 	if err := reply.Check(); err != nil {
 		return nil, err
 	}
-	return &reply, nil
+	return reply, nil
 }
 
 func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
@@ -182,10 +189,11 @@ func (c *KeyTreeClient) History(h crypto.Hash, since uint64) (*SignedEntry, erro
 	if err := c.client.get(fmt.Sprintf("/history?hash=%s&since=%d", h, since), &reply); err != nil {
 		return nil, err
 	}
-	if reply != nil {
-		if err := reply.Check(); err != nil {
-			return nil, err
-		}
+	if reply == nil {
+		return nil, ErrNotFound
+	}
+	if err := reply.Check(); err != nil {
+		return nil, err
 	}
 	return reply, nil
 }

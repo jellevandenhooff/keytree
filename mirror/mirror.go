@@ -92,7 +92,7 @@ func (m *Mirror) fetch() error {
 func (m *Mirror) Run() error {
 	for m.ctx.Err() == nil {
 		err := m.track()
-		if err.Error() == "not found" {
+		if err == wire.ErrNotFound {
 			log.Printf("performing anti-entropy for %s at %s\n", m.publicKey, m.address)
 			for m.ctx.Err() == nil {
 				err := m.fetch()
@@ -102,7 +102,7 @@ func (m *Mirror) Run() error {
 					break
 				}
 
-				if err.Error() == "not found" {
+				if err == wire.ErrNotFound {
 					continue // anti-entropy did not finish yet; try again
 				} else if err != nil {
 					log.Printf("anti-entropy failed with error %s for %s at %s\n", err, m.publicKey, m.address)

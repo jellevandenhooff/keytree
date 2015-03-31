@@ -54,7 +54,7 @@ func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
 	node := s.dedup.FindAndDoNotAdd(hash)
 
 	if node == nil {
-		http.NotFound(w, r)
+		replyJSON(w, nil)
 		return
 	}
 
@@ -231,8 +231,7 @@ func (s *Server) handleUpdateBatch(w http.ResponseWriter, r *http.Request) {
 
 	batch, ok := s.updateCache.get(hash)
 	if !ok {
-		http.NotFound(w, r)
-		return
+		replyJSON(w, nil)
 	}
 
 	replyJSON(w, batch)

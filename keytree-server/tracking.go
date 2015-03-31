@@ -71,13 +71,11 @@ func (t *tracker) fixup(h crypto.Hash) {
 
 	for {
 		update, err := t.conn.History(h, since)
-		if err != nil {
+		if err == wire.ErrNotFound {
+			break
+		} else if err == nil {
 			log.Println(err)
 			return
-		}
-
-		if update == nil {
-			break
 		}
 
 		// Try applying all updates in order. If it doesn't work, keep trying
