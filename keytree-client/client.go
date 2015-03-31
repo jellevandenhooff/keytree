@@ -271,6 +271,6 @@ func main() {
 	if newPublic == "" {
 		fmt.Printf("Your Keytree record is valid, but unlocked, so the owner of your domain can change your record at any time.\n")
 	} else {
-		fmt.Printf("Your Keytree record is valid. To ensure your Keytree record stays secure, make sure to update your record daily.\n")
+		fmt.Printf("Your Keytree record is valid. To ensure your Keytree record stays secure, make sure to check it regularly.\n")
 	}
 }
