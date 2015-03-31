@@ -1,6 +1,5 @@
 TODO
 * use glog
-* set timeouts on sockets?
 * status information
 
 * provide go and js API
@@ -19,8 +18,6 @@ MAYBE:
 * think about how to make lookups never fail in the face of concurrent updates
 * think about 'records travelling back in time' with lookups in clients
 * allow server admin to delete entries
-
-* port all RPC to HTTP
 
 LATER:
 * add rate limits

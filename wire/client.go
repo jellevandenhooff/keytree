@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -31,8 +32,6 @@ func backoff(retries int) time.Duration {
 	}
 	return backoff
 }
-
-// TODO: set timeout on Client
 
 type client struct {
 	host       string
@@ -74,7 +73,9 @@ func decode(resp *http.Response, reply interface{}) error {
 		return errors.New(resp.Status)
 	}
 
-	return json.NewDecoder(resp.Body).Decode(reply)
+	reader := io.LimitReader(resp.Body, 32*1024)
+	dec := json.NewDecoder(reader)
+	return dec.Decode(reply)
 }
 
 func (c *client) get(path string, reply interface{}) (err error) {
@@ -113,7 +114,7 @@ func (c *client) post(path string, request, reply interface{}) (err error) {
 		return err
 	}
 
-	resp, err := c.httpClient.Post(c.host+path, "text/json", buffer)
+	resp, err := c.httpClient.Post(c.host+path, "text/json; charset=utf8", buffer)
 	if err != nil {
 		return err
 	}
@@ -121,13 +122,17 @@ func (c *client) post(path string, request, reply interface{}) (err error) {
 	return decode(resp, reply)
 }
 
-func NewKeyTreeClient(host string) *KeyTreeClient {
-	return &KeyTreeClient{
-		client: &client{
-			host:       host,
-			httpClient: http.DefaultClient,
+func newClient(host string) *client {
+	return &client{
+		host: host,
+		httpClient: &http.Client{
+			Timeout: 20 * time.Second,
 		},
 	}
+}
+
+func NewKeyTreeClient(host string) *KeyTreeClient {
+	return &KeyTreeClient{client: newClient(host)}
 }
 
 func (c *KeyTreeClient) Submit(update *SignedEntry) error {
@@ -204,12 +209,7 @@ type DKIMClient struct {
 }
 
 func NewDKIMClient(host string) *DKIMClient {
-	return &DKIMClient{
-		client: &client{
-			host:       host,
-			httpClient: http.DefaultClient,
-		},
-	}
+	return &DKIMClient{client: newClient(host)}
 }
 
 func (c *DKIMClient) Prepare(req *DKIMStatement) (string, error) {

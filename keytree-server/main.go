@@ -1,12 +1,14 @@
 package main
 
 import (
+	"io"
 	"log"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
@@ -15,14 +17,17 @@ import (
 	"github.com/jellevandenhooff/keytree/updaterules"
 
 	"golang.org/x/net/context"
-
-	_ "net/http/pprof"
 )
 
 type Status struct {
 	PublicKey  string
 	Upstream   []ServerInfo
 	TotalNodes int
+}
+
+type CloseReader struct {
+	io.Reader
+	io.Closer
 }
 
 func main() {
@@ -111,5 +116,16 @@ func main() {
 	s.addHandlers(http.DefaultServeMux)
 	// http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	http.Serve(socket, http.DefaultServeMux)
+	server := &http.Server{
+		ReadTimeout: 10 * time.Second,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = CloseReader{
+				Closer: r.Body,
+				Reader: io.LimitReader(r.Body, 64*1024),
+			}
+			http.DefaultServeMux.ServeHTTP(w, r)
+		}),
+	}
+
+	server.Serve(socket)
 }
