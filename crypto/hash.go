@@ -38,7 +38,7 @@ func (h Hash) String() string {
 	return base32.EncodeToString(h[:])
 }
 
-func FromString(s string) (Hash, error) {
+func HashFromString(s string) (Hash, error) {
 	bytes, err := base32.DecodeString(s)
 	if err != nil {
 		return EmptyHash, err

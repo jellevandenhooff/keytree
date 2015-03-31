@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -15,10 +16,12 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 
 	name := strings.TrimPrefix(r.URL.Path, "/lookup/")
 
+	log.Println(name, crypto.HashString(name))
+
 	var reply wire.LookupReply
 	request := &wire.LookupRequest{
 		Hash:       crypto.HashString(name),
-		PublicKeys: []string{s.config.PublicKey},
+		PublicKeys: []string{s.config.PublicKey, "ed25519-pub(26wj522ncyprkc0t9yr1e1cz2szempbddkay02qqqxqkjnkbnygg)"},
 	}
 	if err := s.Lookup(request, &reply); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -29,6 +32,47 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	bytes, _ := json.MarshalIndent(&reply, "", "  ")
+	w.Write(bytes)
+}
+
+func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	name := strings.TrimPrefix(r.URL.Path, "/browse/")
+
+	var first crypto.Hash
+	if name != "" {
+		first = crypto.HashString(name)
+	} else {
+		first = crypto.EmptyHash
+	}
+
+	var entries []*wire.Entry
+
+	s.mu.Lock()
+	root := s.localTrie.root
+	s.mu.Unlock()
+
+	for i := 0; i < 10; i++ {
+		leaf := root.NextLeaf(first)
+		if leaf == nil {
+			break
+		}
+
+		update, err := s.db.Read(leaf.NameHash)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		entries = append(entries, update.Entry)
+		first = leaf.NameHash
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	bytes, _ := json.MarshalIndent(&entries, "", "  ")
 	w.Write(bytes)
 }
 
@@ -47,6 +91,10 @@ func (s *Server) addHandlers(mux *http.ServeMux) {
 
 	mux.HandleFunc("/lookup/", func(w http.ResponseWriter, r *http.Request) {
 		s.handleLookup(w, r)
+	})
+
+	mux.HandleFunc("/browse/", func(w http.ResponseWriter, r *http.Request) {
+		s.handleBrowse(w, r)
 	})
 
 	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {

@@ -178,11 +178,13 @@ func main() {
 		signatures[oldPublic], _ = crypto.Sign(oldPrivate, newEntry)
 	}
 
+	// todo: determine if we need a proof of ownership!
 	if len(signatures) == 0 {
+		token := base32.EncodeToString(newEntry.Hash().Bytes())
 		if strings.HasPrefix(name, "email:") {
 			statement := &wire.DKIMStatement{
 				Sender: strings.TrimPrefix(name, "email:"),
-				Token:  base32.EncodeToString(newEntry.Hash().Bytes()),
+				Token:  token,
 			}
 
 			dkimConn := wire.NewDKIMClient(client)
@@ -231,6 +233,10 @@ func main() {
 			}
 
 			signatures["dkim"] = proof
+		}
+
+		if strings.HasPrefix(name, "test:") {
+			signatures["test"] = token
 		}
 	}
 

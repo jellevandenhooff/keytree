@@ -183,7 +183,7 @@ func (v *Verifier) VerifyUpdate(old *wire.Entry, update *wire.SignedEntry, now W
 		return errors.New("need valid signature without valid override")
 	}
 
-	if info.changedKeys["keytree:recovery"] && !info.hasValidOwnershipProof {
+	if info.changedKeys["keytree:recovery"] && !info.validSignatures["keytree:recovery"] && !info.hasValidOwnershipProof {
 		return errors.New("need proof of ownership to change recovery key")
 	}
 

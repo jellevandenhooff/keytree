@@ -145,3 +145,44 @@ func (n *Node) Leaves() int {
 	}
 	return n.Children[0].Leaves() + n.Children[1].Leaves()
 }
+
+func (n *Node) leftmostLeaf() *wire.TrieLeaf {
+	if n == nil {
+		return nil
+	}
+
+	if n.Entry != nil {
+		return n.Entry
+	}
+
+	if leaf := n.Children[0].leftmostLeaf(); leaf != nil {
+		return leaf
+	}
+	return n.Children[1].leftmostLeaf()
+}
+
+func (n *Node) nextLeaf(key crypto.Hash, idx int) *wire.TrieLeaf {
+	if n == nil {
+		return nil
+	}
+
+	if n.Entry != nil {
+		if crypto.IsSmaller(key, n.Entry.NameHash) {
+			return n.Entry
+		}
+		return nil
+	}
+
+	if key.GetBit(idx) == 0 {
+		if leaf := n.Children[0].nextLeaf(key, idx+1); leaf != nil {
+			return leaf
+		}
+		return n.Children[1].leftmostLeaf()
+	}
+
+	return n.Children[1].nextLeaf(key, idx+1)
+}
+
+func (n *Node) NextLeaf(key crypto.Hash) *wire.TrieLeaf {
+	return n.nextLeaf(key, 0)
+}
