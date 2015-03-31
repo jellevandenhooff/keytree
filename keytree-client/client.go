@@ -207,6 +207,10 @@ func main() {
 				if err := exec.Command("/usr/bin/open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
 					log.Panicln(err)
 				}
+			} else if runtime.GOOS == "linux" {
+				if err := exec.Command("/usr/bin/xdg-open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
+					log.Panicln(err)
+				}
 			} else {
 				fmt.Printf("To verify e-mail ownership, send an e-mail to %s with subject %s.\n", email, statement.Token)
 			}
