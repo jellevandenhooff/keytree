@@ -16,6 +16,9 @@ import (
 const OneDayInSeconds = 24 * 60 * 60
 const RecoverWaitTime = 4 * OneDayInSeconds
 
+const TokenBits = 128
+const TokenLen = TokenBits / 8
+
 var allowTestNames = flag.Bool("allow-test-names", true, "Allow names of the form 'test:' without proof of ownership.")
 
 type Verifier struct {
@@ -28,10 +31,14 @@ func NewVerifier(dnsClient dkim.DNSClient) *Verifier {
 	}
 }
 
+func TokenForEntry(entry *wire.Entry) string {
+	return base32.EncodeToString(entry.Hash().Bytes()[:TokenLen])
+}
+
 func (v *Verifier) CheckProofOfOwnership(update *wire.SignedEntry) error {
 	name := update.Entry.Name
 
-	token := base32.EncodeToString(update.Entry.Hash().Bytes())
+	token := TokenForEntry(update.Entry)
 
 	if strings.HasPrefix(name, "email:") {
 		signature, found := update.Signatures["dkim"]

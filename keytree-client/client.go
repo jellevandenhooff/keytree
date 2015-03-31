@@ -18,9 +18,9 @@ import (
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
-	"github.com/jellevandenhooff/keytree/encoding/base32"
 	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/unixtime"
+	"github.com/jellevandenhooff/keytree/updaterules"
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
@@ -180,7 +180,7 @@ func main() {
 
 	// todo: determine if we need a proof of ownership!
 	if len(signatures) == 0 {
-		token := base32.EncodeToString(newEntry.Hash().Bytes())
+		token := updaterules.TokenForEntry(newEntry)
 		if strings.HasPrefix(name, "email:") {
 			statement := &wire.DKIMStatement{
 				Sender: strings.TrimPrefix(name, "email:"),

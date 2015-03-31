@@ -1,7 +1,7 @@
 package crypto
 
 import (
-	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -12,7 +12,7 @@ import (
 
 // Hash type
 
-const HashLen = 32
+const HashLen = 64
 const HashBits = 8 * HashLen
 
 type Hash [HashLen]byte
@@ -116,7 +116,7 @@ func (h *Hasher) Sum() Hash {
 
 func NewHasher() *Hasher {
 	return &Hasher{
-		underlying: sha256.New(),
+		underlying: sha512.New(),
 	}
 }
 

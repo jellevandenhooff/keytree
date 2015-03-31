@@ -27,7 +27,7 @@ type DB interface {
 // Database schema:
 // entries/<entry-hash>/<entry-timestamp> -> JSON wire.SignedEntry
 // info/schema-version                    -> uint64 schemaVersion
-const schemaVersion = 7
+const schemaVersion = 8
 
 type boltDb struct {
 	db *bolt.DB
