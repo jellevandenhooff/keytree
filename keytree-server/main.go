@@ -11,8 +11,8 @@ import (
 
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
+	"github.com/jellevandenhooff/keytree/mirror"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/trie/mirror"
 	"github.com/jellevandenhooff/keytree/updaterules"
 
 	"golang.org/x/net/context"

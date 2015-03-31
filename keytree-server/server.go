@@ -2,14 +2,13 @@ package main
 
 import (
 	"log"
-	"net/rpc"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/mirror"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/trie/mirror"
 	"github.com/jellevandenhooff/keytree/unixtime"
 	"github.com/jellevandenhooff/keytree/updaterules"
 	"github.com/jellevandenhooff/keytree/wire"
@@ -213,34 +212,12 @@ func (s *Server) spawnTrackers(ctx context.Context) {
 	defer s.mu.Unlock()
 
 	for _, serverInfo := range s.config.Upstream {
-		address := serverInfo.Address
-		publicKey := serverInfo.PublicKey
-
-		log.Printf("spawning tracker for %s at %s", publicKey, address)
-
-		client, err := rpc.DialHTTP("tcp", address)
+		t, err := runTracker(ctx, s, serverInfo.Address, serverInfo.PublicKey)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-
-		go func() {
-			<-ctx.Done()
-			client.Close()
-		}()
-
-		conn := wire.NewKeyTreeClient(client)
-
-		t := &tracker{
-			ctx:       ctx,
-			conn:      conn,
-			server:    s,
-			address:   address,
-			publicKey: publicKey,
-			queue:     make(chan crypto.Hash, reconcileQueueSize),
-		}
-		s.trackers[publicKey] = t
-		go t.run()
+		s.trackers[serverInfo.PublicKey] = t
 	}
 }
 

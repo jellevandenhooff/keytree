@@ -30,7 +30,6 @@ const noFlushUpdateInterval = 10 * time.Second
 const updateBatchBacklog = 200
 
 const fixerParallelism = 8
-const antiEntropyParallelism = 8
 
 const updateQueueSize = 1000
 const reconcileQueueSize = 2000

@@ -3,10 +3,11 @@
 package main
 
 import (
-	"errors"
 	"log"
+	"net/rpc"
 
 	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/mirror"
 	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/wire"
 	"golang.org/x/net/context"
@@ -14,7 +15,9 @@ import (
 
 type tracker struct {
 	ctx context.Context
-	// read-only
+
+	mirror *mirror.Mirror
+
 	conn               *wire.KeyTreeClient
 	server             *Server
 	address, publicKey string
@@ -23,19 +26,22 @@ type tracker struct {
 	queue chan crypto.Hash
 }
 
-type TrackingMode int
+func (t *tracker) FullSync(s *wire.SignedRoot, n *trie.Node) {
+	t.server.considerTrie(t.publicKey, n, s)
 
-const (
-	AntiEntropy TrackingMode = iota
-	Reconciling
-	Following
-)
+	t.server.mu.Lock()
+	localRoot := t.server.localTrie.root
+	t.server.mu.Unlock()
 
-type TrackingStatus struct {
-	Mode TrackingMode
+	_ = t.reconcile(localRoot, n, 0)
+}
 
-	Nodes             int
-	ReconcilePosition crypto.Hash
+func (t *tracker) Updated(s *wire.SignedRoot, n *trie.Node, u []*wire.TrieLeaf) {
+	t.server.considerTrie(t.publicKey, n, s)
+
+	for _, leaf := range u {
+		t.queue <- leaf.NameHash
+	}
 }
 
 func (t *tracker) fixer() error {
@@ -127,103 +133,37 @@ func (t *tracker) reconcile(local, remote *trie.Node, depth int) error {
 	return nil
 }
 
-func (t *tracker) track() error {
-	for t.ctx.Err() == nil {
-		root := t.server.getRootFor(t.publicKey)
+func runTracker(ctx context.Context, s *Server, address string, publicKey string) (*tracker, error) {
+	log.Printf("spawning tracker for %s at %s", publicKey, address)
 
-		stream, err := t.conn.UpdateBatch(&wire.UpdateBatchRequest{
-			RootHash: root.Hash(),
-		})
-		if err != nil {
-			return err
-		}
-
-		batch := stream.UpdateBatch
-
-		if err := crypto.Verify(t.publicKey, batch.NewRoot.Root, batch.NewRoot.Signature); err != nil {
-			return err
-		}
-
-		newRoot := root
-		for _, leaf := range batch.Updates {
-			newRoot = newRoot.Set(leaf.NameHash, leaf)
-		}
-		newRoot = t.server.dedup.Add(newRoot)
-
-		if newRoot.Hash() != batch.NewRoot.Root.RootHash {
-			return errors.New("hash did not match NewRoot")
-		}
-
-		t.server.considerTrie(t.publicKey, newRoot, batch.NewRoot)
-
-		for _, leaf := range batch.Updates {
-			t.queue <- leaf.NameHash
-		}
-	}
-
-	return t.ctx.Err()
-}
-
-func (t *tracker) fetchAntiEntropy() (*trie.Node, error) {
-	reply, err := t.conn.Root(&wire.RootRequest{})
+	client, err := rpc.DialHTTP("tcp", address)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := crypto.Verify(t.publicKey, reply.SignedRoot.Root, reply.SignedRoot.Signature); err != nil {
-		return nil, err
+	go func() {
+		<-ctx.Done()
+		client.Close()
+	}()
+
+	conn := wire.NewKeyTreeClient(client)
+
+	t := &tracker{
+		ctx:       ctx,
+		conn:      conn,
+		server:    s,
+		address:   address,
+		publicKey: publicKey,
+		queue:     make(chan crypto.Hash, reconcileQueueSize),
 	}
 
-	// Extract hash and perform anti-entropy.
-	rootHash := reply.SignedRoot.Root.RootHash
+	t.mirror = mirror.NewMirror(ctx, s.coordinator, conn, address, publicKey,
+		nil, t)
 
-	// If we failed to completely download the trie, try to keep as much
-	// data by merging in the old stored data.
-	oldRoot := t.server.getRootFor(t.publicKey)
-
-	root, err := t.server.coordinator.Fetch(t.ctx, t.conn, antiEntropyParallelism, rootHash, oldRoot)
-
-	// Keep signature iff hash matches signature.
-	var signedRoot *wire.SignedRoot
-	if root.Hash() == rootHash {
-		signedRoot = reply.SignedRoot
-	}
-
-	// Switch to the new root.
-	t.server.considerTrie(t.publicKey, root, signedRoot)
-
-	return root, err
-}
-
-func (t *tracker) run() error {
 	for i := 0; i < fixerParallelism; i++ {
 		go t.fixer()
 	}
+	go t.mirror.Run()
 
-	for t.ctx.Err() == nil {
-		err := t.track()
-		if err.Error() == "not found" {
-			log.Printf("performing anti-entropy for %s at %s\n", t.publicKey, t.address)
-			for t.ctx.Err() == nil {
-				root, err := t.fetchAntiEntropy()
-				if err == nil {
-					log.Printf("anti-entropy successful for %s at %s\n", t.publicKey, t.address)
-					log.Printf("performing reconcile for %s at %s\n", t.publicKey, t.address)
-					if err := t.reconcile(t.server.localTrie.root, root, 0); err != nil {
-						log.Println("failed to reconcile for %s at %s: %s\n", t.publicKey, t.address, err)
-					}
-					break
-				}
-
-				if err.Error() == "not found" {
-					continue // anti-entropy did not finish yet; try again
-				} else if err != nil {
-					log.Printf("anti-entropy failed with error %s for %s at %s\n", err, t.publicKey, t.address)
-				}
-			}
-		} else if err != nil {
-			log.Printf("tracking failed with error %s for %s at %s\n", err, t.publicKey, t.address)
-		}
-	}
-	return t.ctx.Err()
+	return t, nil
 }
