@@ -7,9 +7,158 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/trie"
+	"github.com/jellevandenhooff/keytree/trie/dedup"
 	"github.com/jellevandenhooff/keytree/wire"
 	"golang.org/x/net/context"
 )
+
+// A work represents a node to be fetched. Each node is uniquely identified by
+// its hash.
+//
+// The depth is used to prioritize nodes further from the root.
+//
+// The result of the work item is stored in node and err, visible once done is
+// closed.
+//
+// Only one anti-entropy client downloads a given node. A client claims a work
+// piece by storing its client in claimed.
+type work struct {
+	// read-only
+	hash  crypto.Hash
+	depth int
+
+	// information accessed only by coordinator
+	refs int
+
+	// claim information protected with mu
+	mu      sync.Mutex
+	claimed *worker
+
+	// results protected by waiting for done
+	done chan struct{}
+	node *trie.Node
+	err  error
+}
+
+func (w *work) claim(worker *worker) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.claimed != nil {
+		return false
+	}
+	w.claimed = worker
+
+	return true
+}
+
+// priority queue order: deeper nodes get resolved first
+type workQueue []*work
+
+func (wq workQueue) Len() int           { return len(wq) }
+func (wq workQueue) Less(a, b int) bool { return wq[a].depth > wq[b].depth }
+func (wq workQueue) Swap(a, b int)      { wq[a], wq[b] = wq[b], wq[a] }
+
+func (wq *workQueue) Push(x interface{}) {
+	*wq = append(*wq, x.(*work))
+}
+
+func (wq *workQueue) Pop() interface{} {
+	old := *wq
+	n := len(old)
+	x := old[n-1]
+	*wq = old[0 : n-1]
+	return x
+}
+
+// A Coordinator tracks nodes being fetched across multiple anti-entropy
+// clients. Each such node is represented by a work item in pending. After
+// fetching, it is removed from pending and stored in dedup.
+// A Coordinator is thread-safe.
+//
+// The basic coordination strategy is first-come, first-serve. Each anti-entropy
+// client prioritizes work as it sees fit, and no two clients download a work
+// item at the same time. To ensure this, clients "claim" work items.
+//
+// If some client claims a work item, but fails to download it, other clients
+// interested in the item re-add it to the Coordinator. The client that failed
+// to download it gives up.
+type Coordinator struct {
+	// read-only
+	dedup *dedup.Dedup
+
+	// pending work protected by mu
+	mu      sync.Mutex
+	pending map[crypto.Hash]*work
+}
+
+func NewCoordinator(dedup *dedup.Dedup) *Coordinator {
+	return &Coordinator{
+		dedup:   dedup,
+		pending: make(map[crypto.Hash]*work),
+	}
+}
+
+func (c *Coordinator) findWork(h crypto.Hash, depth int) *work {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if w, found := c.pending[h]; found {
+		w.refs += 1
+		return w
+	}
+
+	w := &work{
+		done:  make(chan struct{}),
+		refs:  1,
+		hash:  h,
+		depth: depth,
+	}
+
+	c.pending[h] = w
+
+	return w
+}
+
+func (c *Coordinator) finishWork(w *work) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if w.node != nil {
+		w.node = c.dedup.AddMany(w.node, w.refs)
+		for i := 0; i < 2; i++ {
+			c.dedup.Remove(w.node.Children[i])
+		}
+	}
+
+	close(w.done)
+	delete(c.pending, w.hash)
+}
+
+func (c *Coordinator) Fetch(ctx context.Context, conn *wire.KeyTreeClient, parallelism int, hash crypto.Hash, old *trie.Node) (*trie.Node, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
+	worker := &worker{
+		ctx:         ctx,
+		conn:        conn,
+		coordinator: c,
+		old:         make(map[*work]*trie.Node),
+	}
+	worker.cond = sync.NewCond(&worker.mu)
+
+	for i := 0; i < parallelism; i++ {
+		go worker.run()
+	}
+
+	node, err := worker.get(hash, 0, old)
+
+	worker.mu.Lock()
+	cancel()
+	worker.cond.Broadcast()
+	worker.mu.Unlock()
+
+	return node, err
+}
 
 // A worker represents an anti-entropy client session. Pending work is tracked wq,
 // which sorts work items by depth, preferring nodes further from the root.
