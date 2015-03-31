@@ -38,3 +38,5 @@ LATER:
 
 * allow runtime (re-)configuration of upstream, recovery mode
 * allow updates of upstream, perhaps by re-reading config file
+
+* consider porting all RPC to HTTP

@@ -4,11 +4,22 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/wire"
 )
+
+func replyJSON(w http.ResponseWriter, v interface{}) (int, error) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	bytes, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return 0, err
+	}
+	return w.Write(bytes)
+}
 
 func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -26,22 +37,18 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	bytes, _ := json.MarshalIndent(&reply, "", "  ")
-	w.Write(bytes)
+	replyJSON(w, &reply)
 }
 
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	name := strings.TrimPrefix(r.URL.Path, "/browse/")
-
-	var first crypto.Hash
-	if name != "" {
-		first = crypto.HashString(name)
+	afterName := r.URL.Query().Get("after")
+	var after crypto.Hash
+	if afterName != "" {
+		after = crypto.HashString(afterName)
 	} else {
-		first = crypto.EmptyHash
+		after = crypto.EmptyHash
 	}
 
 	var entries []*wire.Entry
@@ -51,7 +58,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	for i := 0; i < 10; i++ {
-		leaf := root.NextLeaf(first)
+		leaf := root.NextLeaf(after)
 		if leaf == nil {
 			break
 		}
@@ -64,13 +71,51 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		}
 
 		entries = append(entries, update.Entry)
-		first = leaf.NameHash
+		after = leaf.NameHash
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	bytes, _ := json.MarshalIndent(&entries, "", "  ")
-	w.Write(bytes)
+	replyJSON(w, entries)
+}
+
+func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	name := strings.TrimPrefix(r.URL.Path, "/history/")
+	hash := crypto.HashString(name)
+
+	afterString := r.URL.Query().Get("after")
+	var since uint64
+	if afterString != "" {
+		afterInt, err := strconv.Atoi(afterString)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, err.Error())
+			return
+		}
+		since = uint64(afterInt + 1)
+	} else {
+		since = 0
+	}
+
+	var updates []*wire.SignedEntry
+
+	for i := 0; i < 10; i++ {
+		update, err := s.db.ReadSince(hash, since)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, err.Error())
+			return
+		}
+
+		if update == nil {
+			break
+		}
+
+		updates = append(updates, update)
+		since = update.Entry.Timestamp + 1
+	}
+
+	replyJSON(w, updates)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -90,7 +135,11 @@ func (s *Server) addHandlers(mux *http.ServeMux) {
 		s.handleLookup(w, r)
 	})
 
-	mux.HandleFunc("/browse/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/history/", func(w http.ResponseWriter, r *http.Request) {
+		s.handleHistory(w, r)
+	})
+
+	mux.HandleFunc("/browse", func(w http.ResponseWriter, r *http.Request) {
 		s.handleBrowse(w, r)
 	})
 
