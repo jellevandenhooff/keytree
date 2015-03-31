@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 
@@ -15,8 +14,6 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	name := strings.TrimPrefix(r.URL.Path, "/lookup/")
-
-	log.Println(name, crypto.HashString(name))
 
 	var reply wire.LookupReply
 	request := &wire.LookupRequest{
