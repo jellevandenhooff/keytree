@@ -2,53 +2,127 @@ package main
 
 import (
 	"encoding/json"
-	"io"
+	"errors"
+	"log"
 	"net/http"
 	"strconv"
-	"strings"
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
-func replyJSON(w http.ResponseWriter, v interface{}) (int, error) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+var ErrExpectedNameOrHash = errors.New("expected name or hash in query")
+
+func parseNameOrHash(r *http.Request) (crypto.Hash, error) {
+	hashString := r.URL.Query().Get("hash")
+	nameString := r.URL.Query().Get("name")
+
+	if hashString != "" && nameString != "" {
+		return crypto.EmptyHash, errors.New("expected either name or hash in query; not both")
+	}
+
+	if hashString == "" && nameString == "" {
+		return crypto.EmptyHash, ErrExpectedNameOrHash
+	}
+
+	if hashString != "" {
+		return crypto.HashFromString(hashString)
+	}
+	return crypto.HashString(nameString), nil
+}
+
+func replyJSON(w http.ResponseWriter, v interface{}) {
 	bytes, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		return 0, err
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
-	return w.Write(bytes)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(bytes)
+}
+
+func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	hash, err := crypto.HashFromString(r.URL.Query().Get("hash"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	node := s.dedup.FindAndDoNotAdd(hash)
+
+	if node == nil {
+		http.NotFound(w, r)
+		return
+	}
+
+	if node.Entry != nil {
+		replyJSON(w, &wire.TrieNode{
+			Leaf: node.Entry,
+		})
+	} else {
+		replyJSON(w, &wire.TrieNode{
+			ChildHashes: &[2]crypto.Hash{node.Children[0].Hash(), node.Children[1].Hash()},
+		})
+	}
 }
 
 func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	name := strings.TrimPrefix(r.URL.Path, "/lookup/")
-
-	var reply wire.LookupReply
-	request := &wire.LookupRequest{
-		Hash:       crypto.HashString(name),
-		PublicKeys: []string{s.config.PublicKey, "ed25519-pub(26wj522ncyprkc0t9yr1e1cz2szempbddkay02qqqxqkjnkbnygg)"},
-	}
-	if err := s.Lookup(request, &reply); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		io.WriteString(w, err.Error())
+	hash, err := parseNameOrHash(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	replyJSON(w, &reply)
+	update, err := s.db.Read(hash)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var entry *wire.Entry
+	if update != nil {
+		entry = update.Entry
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	lookups := make(map[string]*wire.SignedTrieLookup)
+
+	for publicKey, trie := range s.allTries {
+		lookup, leaf := trie.root.Lookup(hash)
+		var leafHash crypto.Hash
+		if leaf != nil {
+			leafHash = leaf.EntryHash
+		}
+
+		if leafHash == entry.Hash() {
+			lookups[publicKey] = &wire.SignedTrieLookup{
+				SignedRoot: trie.signedRoot,
+				TrieLookup: lookup,
+			}
+		}
+	}
+
+	replyJSON(w, &wire.LookupReply{
+		Entry:             entry,
+		SignedTrieLookups: lookups,
+	})
 }
 
 func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	afterName := r.URL.Query().Get("after")
-	var after crypto.Hash
-	if afterName != "" {
-		after = crypto.HashString(afterName)
-	} else {
-		after = crypto.EmptyHash
+	hash, err := parseNameOrHash(r)
+	if err == ErrExpectedNameOrHash {
+		hash = crypto.EmptyHash
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	var entries []*wire.Entry
@@ -58,20 +132,19 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 	s.mu.Unlock()
 
 	for i := 0; i < 10; i++ {
-		leaf := root.NextLeaf(after)
+		leaf := root.NextLeaf(hash)
 		if leaf == nil {
 			break
 		}
 
 		update, err := s.db.Read(leaf.NameHash)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			io.WriteString(w, err.Error())
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		entries = append(entries, update.Entry)
-		after = leaf.NameHash
+		hash = leaf.NameHash
 	}
 
 	replyJSON(w, entries)
@@ -80,50 +153,98 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	name := strings.TrimPrefix(r.URL.Path, "/history/")
-	hash := crypto.HashString(name)
+	hash, err := parseNameOrHash(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	afterString := r.URL.Query().Get("after")
+	log.Println(hash)
+
+	sinceString := r.URL.Query().Get("since")
 	var since uint64
-	if afterString != "" {
-		afterInt, err := strconv.Atoi(afterString)
+	if sinceString != "" {
+		sinceInt, err := strconv.Atoi(sinceString)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			io.WriteString(w, err.Error())
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		since = uint64(afterInt + 1)
+		since = uint64(sinceInt)
 	} else {
 		since = 0
 	}
 
-	var updates []*wire.SignedEntry
-
-	for i := 0; i < 10; i++ {
-		update, err := s.db.ReadSince(hash, since)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			io.WriteString(w, err.Error())
-			return
-		}
-
-		if update == nil {
-			break
-		}
-
-		updates = append(updates, update)
-		since = update.Entry.Timestamp + 1
+	update, err := s.db.ReadSince(hash, since)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
-	replyJSON(w, updates)
+	replyJSON(w, update)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+	}
 
+	/*
+		replyJSON(w, &Status{
+			PublicKey:  s.config.PublicKey,
+			Upstream:   s.config.Upstream,
+			TotalNodes: s.dedup.NumNodes(),
+		})
+	*/
 }
 
 func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	var update *wire.SignedEntry
+	if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := update.Check(); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	err := s.doUpdate(update)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	replyJSON(w, err)
+}
+
+func (s *Server) handleUpdateBatch(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	hash, err := crypto.HashFromString(r.URL.Query().Get("hash"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	batch, ok := s.updateCache.get(hash)
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	replyJSON(w, batch)
+}
+
+func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	replyJSON(w, s.localTrie.signedRoot)
 }
 
 func (s *Server) addHandlers(mux *http.ServeMux) {
@@ -131,11 +252,23 @@ func (s *Server) addHandlers(mux *http.ServeMux) {
 		s.handleIndex(w, r)
 	})
 
-	mux.HandleFunc("/lookup/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/lookup", func(w http.ResponseWriter, r *http.Request) {
 		s.handleLookup(w, r)
 	})
 
-	mux.HandleFunc("/history/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/updatebatch", func(w http.ResponseWriter, r *http.Request) {
+		s.handleUpdateBatch(w, r)
+	})
+
+	mux.HandleFunc("/root", func(w http.ResponseWriter, r *http.Request) {
+		s.handleRoot(w, r)
+	})
+
+	mux.HandleFunc("/trienode", func(w http.ResponseWriter, r *http.Request) {
+		s.handleTrieNode(w, r)
+	})
+
+	mux.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
 		s.handleHistory(w, r)
 	})
 
@@ -147,183 +280,3 @@ func (s *Server) addHandlers(mux *http.ServeMux) {
 		s.handleSubmit(w, r)
 	})
 }
-
-/*
-	// const maxEntriesPerDump = 5000
-
-	http.HandleFunc("/lookup/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		state := srv.state.Load().(*state)
-
-		name := strings.TrimPrefix(r.URL.Path, "/lookup/")
-		hash := crypto.HashString(name)
-
-		lookup, entry := state.trie.Lookup(hash)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode([]rpc.Result{{
-			Entry:  entry,
-			Lookup: lookup,
-		}})
-
-		lookups.Add(1)
-	})
-	http.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		var update *keytree.Update
-		if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		if err := srv.doUpdate(update); err != nil {
-			// todo: distinguish between internal server error and bad request?
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
-
-		updateStats.Add("Direct", 1)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(nil)
-
-	})
-
-	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		state := srv.state.Load().(*state)
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(state.status)
-	})
-
-	http.HandleFunc("/dump", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-
-		state := srv.state.Load().(*state)
-
-		version := state.version
-
-		versionString := r.URL.Query().Get("version")
-		if versionString != "" {
-			versionInt, err := strconv.Atoi(versionString)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			if versionInt < 0 || uint64(versionInt) > state.version {
-				http.Error(w, "version out of range", http.StatusBadRequest)
-				return
-			}
-			version = uint64(versionInt)
-		}
-
-		first := crypto.EmptyHash
-
-		firstString := r.URL.Query().Get("first")
-		if firstString != "" {
-			first, err = crypto.FromString(firstString)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-		}
-
-		dump := rpc.Dump{
-			Entries: make(map[string]*keytree.Entry),
-			Version: version,
-		}
-
-		versionBytes := encoding.EncodeBEUint64(version)
-
-		if err := db.View(func(tx *bolt.Tx) error {
-			entries := tx.Bucket([]byte("entries"))
-
-			c := entries.Cursor()
-			for k, _ := c.Seek(first.Bytes()); k != nil; k, _ = c.Next() {
-				c := entries.Bucket(k).Cursor()
-				c.Seek(versionBytes)
-				_, v := c.Prev()
-				if v == nil {
-					continue
-				}
-
-				var entry *keytree.Entry
-				if err := json.Unmarshal(v, &entry); err != nil {
-					return err
-				}
-
-				dump.Entries[entry.NameHash().String()] = entry
-				if len(dump.Entries) >= maxEntriesPerDump {
-					break
-				}
-			}
-
-			return nil
-		}); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-
-		json.NewEncoder(w).Encode(dump)
-	})
-
-	http.Handle("/updates", websocket.Handler(func(conn *websocket.Conn) {
-		state := srv.state.Load().(*state)
-
-		versionInt, err := strconv.Atoi(conn.Request().URL.Query().Get("version"))
-		if err != nil {
-			return
-		}
-		if versionInt < 0 || uint64(versionInt) > state.version {
-			return
-		}
-		version := uint64(versionInt)
-
-		state = nil // let GC collect state
-
-		srv.broadcastLock.Lock()
-
-		if err := db.View(func(tx *bolt.Tx) error {
-			entries := tx.Bucket([]byte("updates"))
-
-			c := entries.Cursor()
-			for k, v := c.Seek(encoding.EncodeBEUint64(version)); k != nil; k, v = c.Next() {
-				version := encoding.DecodeBEUint64(k)
-				if version > srv.broadcastVersion {
-					break
-				}
-
-				var update *keytree.Update
-				if err := json.Unmarshal(v, &update); err != nil {
-					return err
-				}
-				if err := websocket.JSON.Send(conn, update); err != nil {
-					return err
-				}
-			}
-
-			return nil
-		}); err != nil {
-			srv.broadcastLock.Unlock()
-			conn.Close()
-			log.Printf("error reading updates: %s\n", err)
-			return
-		}
-
-		srv.broadcastConnections = append(srv.broadcastConnections, conn)
-		srv.broadcastLock.Unlock()
-
-		// block on an open connection
-		conn.Read(nil)
-	}))
-*/

@@ -283,14 +283,10 @@ func hashWireTrieNode(node *wire.TrieNode) crypto.Hash {
 }
 
 func (fetcher *fetcher) do(pn *pendingNode, old *trie.Node) (*trie.Node, error) {
-	res, err := fetcher.conn.TrieNode(&wire.TrieNodeRequest{
-		Hash: pn.hash,
-	})
+	node, err := fetcher.conn.TrieNode(pn.hash)
 	if err != nil {
 		return old, err
 	}
-
-	node := res.Node
 
 	if hashWireTrieNode(node) != pn.hash {
 		// TODO: don't recompute hash later on?

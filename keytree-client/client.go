@@ -1,12 +1,9 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"log"
-	"net/rpc"
 	"os"
 	"os/exec"
 	"runtime"
@@ -54,12 +51,7 @@ func main() {
 		name = "email:" + name
 	}
 
-	client, err := rpc.DialHTTP("tcp", *server)
-	if err != nil {
-		log.Panicln(err)
-	}
-	defer client.Close()
-	conn := wire.NewKeyTreeClient(client)
+	conn := wire.NewKeyTreeClient("http://" + *server)
 
 	newKeys := make(map[string]string)
 	for _, arg := range flag.Args()[1:] {
@@ -80,10 +72,7 @@ func main() {
 	var old *wire.Entry
 
 	{
-		reply, err := conn.Lookup(&wire.LookupRequest{
-			Hash:       crypto.HashString(name),
-			PublicKeys: publicKeys,
-		})
+		reply, err := conn.Lookup(crypto.HashString(name))
 		if err != nil {
 			log.Panicln(err)
 		}
@@ -179,6 +168,7 @@ func main() {
 		signatures[oldPublic], _ = crypto.Sign(oldPrivate, newEntry)
 	}
 
+	// todo: write all submitted updates to storage?
 	// todo: determine if we need a proof of ownership!
 	if len(signatures) == 0 {
 		token := updaterules.TokenForEntry(newEntry)
@@ -188,20 +178,13 @@ func main() {
 				Token:  token,
 			}
 
-			dkimConn := wire.NewDKIMClient(client)
+			dkimConn := wire.NewDKIMClient("http://" + *server)
 
 			fmt.Printf("Obtaining DKIM proof for new entry...\n")
-			buffer := bytes.NewBuffer(nil)
-			json.NewEncoder(buffer).Encode(&statement)
-
-			reply, err := dkimConn.DKIMPrepare(&wire.DKIMPrepareRequest{
-				Statement: statement,
-			})
+			email, err := dkimConn.Prepare(statement)
 			if err != nil {
 				log.Panicln(err)
 			}
-
-			email := reply.Email
 
 			if runtime.GOOS == "darwin" {
 				if err := exec.Command("/usr/bin/open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
@@ -222,9 +205,7 @@ func main() {
 			for proof == "" {
 				time.Sleep(1 * time.Second)
 
-				reply, err := dkimConn.DKIMPoll(&wire.DKIMPollRequest{
-					Email: email,
-				})
+				reply, err := dkimConn.Poll(email)
 				if err != nil {
 					log.Panicln(err)
 				}
@@ -251,24 +232,14 @@ func main() {
 
 	{
 		fmt.Printf("Submitting update to Keytree server...\n")
-		_, err := conn.Update(&wire.UpdateRequest{
-			SignedEntry: &wire.SignedEntry{
-				Entry:      newEntry,
-				Signatures: signatures,
-			},
+		err := conn.Submit(&wire.SignedEntry{
+			Entry:      newEntry,
+			Signatures: signatures,
 		})
 		if err != nil {
 			log.Panicln(err)
 		}
 	}
-
-	/*
-		buffer := bytes.NewBuffer(nil)
-		json.NewEncoder(buffer).Encode(&update)
-		var res interface{}
-		resp, err = http.Post(*server+"/submit", "text/json; charset=utf8", buffer)
-		parse(resp, err, "submitting update", &res)
-	*/
 
 	fmt.Printf("Successfully applied update.\n")
 

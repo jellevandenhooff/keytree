@@ -34,14 +34,10 @@ func (m *Mirror) track() error {
 	for m.ctx.Err() == nil {
 		root := m.root
 
-		stream, err := m.conn.UpdateBatch(&wire.UpdateBatchRequest{
-			RootHash: root.Hash(),
-		})
+		batch, err := m.conn.UpdateBatch(root.Hash())
 		if err != nil {
 			return err
 		}
-
-		batch := stream.UpdateBatch
 
 		if err := crypto.Verify(m.publicKey, batch.NewRoot.Root, batch.NewRoot.Signature); err != nil {
 			return err
@@ -65,17 +61,17 @@ func (m *Mirror) track() error {
 }
 
 func (m *Mirror) fetch() error {
-	reply, err := m.conn.Root(&wire.RootRequest{})
+	signedRoot, err := m.conn.Root()
 	if err != nil {
 		return err
 	}
 
-	if err := crypto.Verify(m.publicKey, reply.SignedRoot.Root, reply.SignedRoot.Signature); err != nil {
+	if err := crypto.Verify(m.publicKey, signedRoot.Root, signedRoot.Signature); err != nil {
 		return err
 	}
 
 	// Extract hash and perform anti-entropy.
-	rootHash := reply.SignedRoot.Root.RootHash
+	rootHash := signedRoot.Root.RootHash
 
 	// If we failed to completely download the trie, try to keep as much
 	// data by merging in the old stored data.
@@ -84,7 +80,7 @@ func (m *Mirror) fetch() error {
 
 	// Keep signature iff hash matches signature.
 	if root.Hash() == rootHash {
-		m.follower.FullSync(reply.SignedRoot, root)
+		m.follower.FullSync(signedRoot, root)
 	}
 
 	// Store root even if fetch did not succeed.

@@ -1,9 +1,10 @@
 package dkimproof
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -73,9 +74,29 @@ func (s *Server) handleMail(m *smtp.Mail) {
 	update.Proof = verified.CanonHeaders()
 }
 
-func (s *Server) DKIMPrepare(req *wire.DKIMPrepareRequest, reply *wire.DKIMPrepareReply) error {
+func replyJSON(w http.ResponseWriter, v interface{}) {
+	bytes, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(bytes)
+}
+
+func (s *Server) handlePrepare(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	var req wire.DKIMStatement
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	if err := req.Check(); err != nil {
-		return err
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	s.mu.Lock()
@@ -83,36 +104,34 @@ func (s *Server) DKIMPrepare(req *wire.DKIMPrepareRequest, reply *wire.DKIMPrepa
 
 	email := crypto.GenerateRandomToken(6) + "@" + s.domain
 	s.pending[email] = &wire.DKIMUpdate{
-		Statement:  req.Statement,
+		Statement:  &req,
 		Proof:      "",
 		Status:     nil,
 		Expiration: unixtime.Now() + 15*60,
 	}
 
-	reply.Email = email
-	return nil
+	replyJSON(w, email)
 }
 
-func (s *Server) DKIMPoll(req *wire.DKIMPollRequest, reply *wire.DKIMPollReply) error {
-	if err := req.Check(); err != nil {
-		return err
-	}
+func (s *Server) handlePoll(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	update, found := s.pending[req.Email]
+	update, found := s.pending[r.URL.Query().Get("email")]
 	if !found {
-		return errors.New("not found (expired?)")
+		http.NotFound(w, r)
 	}
 
-	reply.Proof = update.Proof
-	reply.Status = update.Status
-	reply.Expiration = update.Expiration
-	return nil
+	replyJSON(w, &wire.DKIMStatus{
+		Proof:      update.Proof,
+		Status:     update.Status,
+		Expiration: update.Expiration,
+	})
 }
 
-func RunServer(domain string, dnsClient dkim.DNSClient) (*Server, error) {
+func RunServer(domain string, dnsClient dkim.DNSClient) (*http.ServeMux, error) {
 	s := &Server{
 		domain:    domain,
 		pending:   make(map[string]*wire.DKIMUpdate),
@@ -127,7 +146,16 @@ func RunServer(domain string, dnsClient dkim.DNSClient) (*Server, error) {
 	go smtp.Serve(domain, l, func(m *smtp.Mail) {
 		s.handleMail(m)
 	})
+
 	go s.run()
 
-	return s, nil
+	mux := http.NewServeMux()
+	mux.HandleFunc("/prepare", func(w http.ResponseWriter, r *http.Request) {
+		s.handlePrepare(w, r)
+	})
+	mux.HandleFunc("/poll", func(w http.ResponseWriter, r *http.Request) {
+		s.handlePoll(w, r)
+	})
+
+	return mux, nil
 }

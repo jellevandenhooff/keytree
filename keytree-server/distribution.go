@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"sync"
 
 	"github.com/jellevandenhooff/keytree/crypto"
@@ -31,7 +30,7 @@ func newUpdateCache(current crypto.Hash) *updateCache {
 	return cache
 }
 
-func (ub *updateCache) get(hash crypto.Hash) (*wire.UpdateBatch, error) {
+func (ub *updateCache) get(hash crypto.Hash) (*wire.UpdateBatch, bool) {
 	ub.mu.RLock()
 	defer ub.mu.RUnlock()
 
@@ -41,10 +40,10 @@ func (ub *updateCache) get(hash crypto.Hash) (*wire.UpdateBatch, error) {
 
 	batch, found := ub.batches[hash]
 	if !found {
-		return nil, errors.New("not found")
+		return nil, false
 	}
 
-	return batch, nil
+	return batch, true
 }
 
 func (ub *updateCache) add(hash crypto.Hash, batch *wire.UpdateBatch) {

@@ -4,7 +4,6 @@ package main
 
 import (
 	"log"
-	"net/rpc"
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/mirror"
@@ -71,25 +70,22 @@ func (t *tracker) fixup(h crypto.Hash) {
 	}
 
 	for {
-		reply, err := t.conn.History(&wire.HistoryRequest{
-			Hash:  h,
-			Since: since,
-		})
+		update, err := t.conn.History(h, since)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		if reply.Update == nil {
+		if update == nil {
 			break
 		}
 
 		// Try applying all updates in order. If it doesn't work, keep trying
 		// anyway!
-		if err := t.server.doUpdate(reply.Update); err != nil {
+		if err := t.server.doUpdate(update); err != nil {
 			log.Println(err)
 		}
-		since = reply.Update.Entry.Timestamp + 1
+		since = update.Entry.Timestamp + 1
 	}
 }
 
@@ -136,17 +132,7 @@ func (t *tracker) reconcile(local, remote *trie.Node, depth int) error {
 func runTracker(ctx context.Context, s *Server, address string, publicKey string) (*tracker, error) {
 	log.Printf("spawning tracker for %s at %s", publicKey, address)
 
-	client, err := rpc.DialHTTP("tcp", address)
-	if err != nil {
-		return nil, err
-	}
-
-	go func() {
-		<-ctx.Done()
-		client.Close()
-	}()
-
-	conn := wire.NewKeyTreeClient(client)
+	conn := wire.NewKeyTreeClient("http://" + address)
 
 	t := &tracker{
 		ctx:       ctx,
@@ -157,8 +143,7 @@ func runTracker(ctx context.Context, s *Server, address string, publicKey string
 		queue:     make(chan crypto.Hash, reconcileQueueSize),
 	}
 
-	t.mirror = mirror.NewMirror(ctx, s.coordinator, conn, address, publicKey,
-		nil, t)
+	t.mirror = mirror.NewMirror(ctx, s.coordinator, conn, address, publicKey, nil, t)
 
 	for i := 0; i < fixerParallelism; i++ {
 		go t.fixer()

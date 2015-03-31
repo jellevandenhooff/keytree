@@ -1,20 +1,152 @@
 package wire
 
-import "net/rpc"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"log"
+	"math/rand"
+	"net/http"
+	"sync"
+	"time"
+
+	"github.com/jellevandenhooff/keytree/crypto"
+)
+
+func backoff(retries int) time.Duration {
+	backoff, max := 1*time.Second, 10*time.Second
+	for backoff < max && retries > 0 {
+		backoff = backoff * 2
+		retries--
+	}
+	if backoff > max {
+		backoff = max
+	}
+
+	backoff -= time.Duration(float64(backoff) * 0.4 * rand.Float64())
+	if backoff < 0 {
+		return 0
+	}
+	return backoff
+}
+
+type client struct {
+	host       string
+	httpClient *http.Client
+
+	mu      sync.Mutex
+	retries int
+}
+
+func (c *client) success() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.retries = 0
+}
+
+func (c *client) failure() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	time.Sleep(backoff(c.retries))
+	c.retries += 1
+}
+
+func (c *client) await() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+}
 
 type KeyTreeClient struct {
-	client *rpc.Client
+	client *client
 }
 
-func NewKeyTreeClient(client *rpc.Client) *KeyTreeClient {
+func decode(resp *http.Response, reply interface{}) error {
+	defer resp.Body.Close()
+
+	if err := json.NewDecoder(resp.Body).Decode(reply); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (c *client) get(path string, reply interface{}) (err error) {
+	c.await()
+
+	defer func() {
+		log.Println(err.Error())
+		if err != nil && err.Error() != "not found" {
+			c.failure()
+		} else {
+			c.success()
+		}
+	}()
+
+	resp, err := c.httpClient.Get(c.host + path)
+	if err != nil {
+		return err
+	}
+
+	return decode(resp, reply)
+}
+
+func (c *client) post(path string, request, reply interface{}) (err error) {
+	c.await()
+
+	defer func() {
+		log.Println(err.Error())
+		if err != nil && err.Error() != "not found" {
+			c.failure()
+		} else {
+			c.success()
+		}
+	}()
+
+	// TODO: Use a pool of buffers?
+	buffer := new(bytes.Buffer)
+	if err := json.NewEncoder(buffer).Encode(request); err != nil {
+		return err
+	}
+
+	resp, err := c.httpClient.Post(c.host+path, "text/json", buffer)
+	if err != nil {
+		return err
+	}
+
+	return decode(resp, reply)
+}
+
+func NewKeyTreeClient(host string) *KeyTreeClient {
 	return &KeyTreeClient{
-		client: client,
+		client: &client{
+			host:       host,
+			httpClient: http.DefaultClient,
+		},
 	}
 }
 
-func (c *KeyTreeClient) Update(req *UpdateRequest) (*UpdateReply, error) {
-	var reply UpdateReply
-	if err := c.client.Call("KeyTree.Update", req, &reply); err != nil {
+func (c *KeyTreeClient) Submit(update *SignedEntry) error {
+	var reply interface{}
+	return c.client.post("/submit", update, &reply)
+}
+
+func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
+	var reply *TrieNode
+	if err := c.client.get(fmt.Sprintf("/trienode?hash=%s", h), &reply); err != nil {
+		return nil, err
+	}
+	if reply != nil {
+		if err := reply.Check(); err != nil {
+			return nil, err
+		}
+	}
+	return reply, nil
+}
+
+func (c *KeyTreeClient) Root() (*SignedRoot, error) {
+	var reply SignedRoot
+	if err := c.client.get("/root", &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -23,9 +155,9 @@ func (c *KeyTreeClient) Update(req *UpdateRequest) (*UpdateReply, error) {
 	return &reply, nil
 }
 
-func (c *KeyTreeClient) TrieNode(req *TrieNodeRequest) (*TrieNodeReply, error) {
-	var reply TrieNodeReply
-	if err := c.client.Call("KeyTree.TrieNode", req, &reply); err != nil {
+func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
+	var reply UpdateBatch
+	if err := c.client.get(fmt.Sprintf("/updatebatch?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -34,31 +166,9 @@ func (c *KeyTreeClient) TrieNode(req *TrieNodeRequest) (*TrieNodeReply, error) {
 	return &reply, nil
 }
 
-func (c *KeyTreeClient) Root(req *RootRequest) (*RootReply, error) {
-	var reply RootReply
-	if err := c.client.Call("KeyTree.Root", req, &reply); err != nil {
-		return nil, err
-	}
-	if err := reply.Check(); err != nil {
-		return nil, err
-	}
-	return &reply, nil
-}
-
-func (c *KeyTreeClient) UpdateBatch(req *UpdateBatchRequest) (*UpdateBatchReply, error) {
-	var reply UpdateBatchReply
-	if err := c.client.Call("KeyTree.UpdateBatch", req, &reply); err != nil {
-		return nil, err
-	}
-	if err := reply.Check(); err != nil {
-		return nil, err
-	}
-	return &reply, nil
-}
-
-func (c *KeyTreeClient) Lookup(req *LookupRequest) (*LookupReply, error) {
+func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
 	var reply LookupReply
-	if err := c.client.Call("KeyTree.Lookup", req, &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/lookup?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -67,41 +177,43 @@ func (c *KeyTreeClient) Lookup(req *LookupRequest) (*LookupReply, error) {
 	return &reply, nil
 }
 
-func (c *KeyTreeClient) History(req *HistoryRequest) (*HistoryReply, error) {
-	var reply HistoryReply
-	if err := c.client.Call("KeyTree.History", req, &reply); err != nil {
+func (c *KeyTreeClient) History(h crypto.Hash, since uint64) (*SignedEntry, error) {
+	var reply *SignedEntry
+	if err := c.client.get(fmt.Sprintf("/history?hash=%s&since=%d", h, since), &reply); err != nil {
 		return nil, err
 	}
-	if err := reply.Check(); err != nil {
-		return nil, err
+	if reply != nil {
+		if err := reply.Check(); err != nil {
+			return nil, err
+		}
 	}
-	return &reply, nil
+	return reply, nil
 }
 
 type DKIMClient struct {
-	client *rpc.Client
+	client *client
 }
 
-func NewDKIMClient(client *rpc.Client) *DKIMClient {
+func NewDKIMClient(host string) *DKIMClient {
 	return &DKIMClient{
-		client: client,
+		client: &client{
+			host:       host,
+			httpClient: http.DefaultClient,
+		},
 	}
 }
 
-func (c *DKIMClient) DKIMPrepare(req *DKIMPrepareRequest) (*DKIMPrepareReply, error) {
-	var reply DKIMPrepareReply
-	if err := c.client.Call("DKIM.DKIMPrepare", req, &reply); err != nil {
-		return nil, err
+func (c *DKIMClient) Prepare(req *DKIMStatement) (string, error) {
+	var reply string
+	if err := c.client.post("/dkim/prepare", req, &reply); err != nil {
+		return "", err
 	}
-	if err := reply.Check(); err != nil {
-		return nil, err
-	}
-	return &reply, nil
+	return reply, nil
 }
 
-func (c *DKIMClient) DKIMPoll(req *DKIMPollRequest) (*DKIMPollReply, error) {
-	var reply DKIMPollReply
-	if err := c.client.Call("DKIM.DKIMPoll", req, &reply); err != nil {
+func (c *DKIMClient) Poll(req string) (*DKIMStatus, error) {
+	var reply DKIMStatus
+	if err := c.client.get(fmt.Sprintf("/dkim/status?email=%s", req), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {

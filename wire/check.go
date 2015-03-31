@@ -26,23 +26,6 @@ func (l *TrieLeaf) Check() error {
 	return nil
 }
 
-func (req *UpdateRequest) Check() error {
-	if req == nil {
-		return errors.New("missing update request")
-	}
-	if err := req.SignedEntry.Check(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (reply *UpdateReply) Check() error {
-	if reply == nil {
-		return errors.New("missing update reply")
-	}
-	return nil
-}
-
 func (n *TrieNode) Check() error {
 	if n == nil {
 		return errors.New("missing trie node")
@@ -59,23 +42,6 @@ func (n *TrieNode) Check() error {
 	return nil
 }
 
-func (req *TrieNodeRequest) Check() error {
-	if req == nil {
-		return errors.New("missing trie node request")
-	}
-	return nil
-}
-
-func (reply *TrieNodeReply) Check() error {
-	if reply == nil {
-		return errors.New("missing trie node reply")
-	}
-	if err := reply.Node.Check(); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (r *Root) Check() error {
 	if r == nil {
 		return errors.New("missing root")
@@ -88,40 +54,6 @@ func (r *SignedRoot) Check() error {
 		return errors.New("missing signed root")
 	}
 	if err := r.Root.Check(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (req *RootRequest) Check() error {
-	if req == nil {
-		return errors.New("missing root request")
-	}
-	return nil
-}
-
-func (reply *RootReply) Check() error {
-	if reply == nil {
-		return errors.New("missing root reply")
-	}
-	if err := reply.SignedRoot.Check(); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (req *UpdateBatchRequest) Check() error {
-	if req == nil {
-		return errors.New("missing update batch request")
-	}
-	return nil
-}
-
-func (reply *UpdateBatchReply) Check() error {
-	if reply == nil {
-		return errors.New("missing update batch reply")
-	}
-	if err := reply.UpdateBatch.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -168,14 +100,6 @@ func (tl *SignedTrieLookup) Check() error {
 	return nil
 }
 
-func (req *LookupRequest) Check() error {
-	if req == nil {
-		return errors.New("missing signed trie lookup")
-	}
-
-	return nil
-}
-
 func (reply *LookupReply) Check() error {
 	if reply == nil {
 		return errors.New("missing signed trie lookup")
@@ -190,29 +114,6 @@ func (reply *LookupReply) Check() error {
 	// Allow nil entries
 	if reply.Entry != nil {
 		if err := reply.Entry.Check(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (req *HistoryRequest) Check() error {
-	if req == nil {
-		return errors.New("missing history request")
-	}
-
-	return nil
-}
-
-func (reply *HistoryReply) Check() error {
-	if reply == nil {
-		return errors.New("missing history reply")
-	}
-
-	// Allow nil entries
-	if reply.Update != nil {
-		if err := reply.Update.Check(); err != nil {
 			return err
 		}
 	}
@@ -240,37 +141,9 @@ func (u *DKIMUpdate) Check() error {
 	return nil
 }
 
-func (req *DKIMPrepareRequest) Check() error {
+func (req *DKIMStatus) Check() error {
 	if req == nil {
-		return errors.New("missing dkim prepare request")
-	}
-
-	if err := req.Statement.Check(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (reply *DKIMPrepareReply) Check() error {
-	if reply == nil {
-		return errors.New("missing dkim prepare reply")
-	}
-
-	return nil
-}
-
-func (req *DKIMPollRequest) Check() error {
-	if req == nil {
-		return errors.New("missing dkim poll request")
-	}
-
-	return nil
-}
-
-func (reply *DKIMPollReply) Check() error {
-	if reply == nil {
-		return errors.New("missing dkim poll reply")
+		return errors.New("missing dkim status")
 	}
 
 	return nil

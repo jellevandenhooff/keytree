@@ -4,7 +4,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"net/rpc"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -102,40 +101,15 @@ func main() {
 	go s.processUpdates()
 	go s.follow(context.Background())
 
-	rpc.RegisterName("KeyTree", s)
 	dkimServer, err := dkimproof.RunServer("keytree.io", dnsClient)
 	if err != nil {
 		log.Printf("could not start DKIM server: %s", err)
 	} else {
-		rpc.RegisterName("DKIM", dkimServer)
+		http.Handle("/dkim/", http.StripPrefix("/dkim/", dkimServer))
 	}
-	rpc.HandleHTTP()
-
-	/*
-		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-			history, _ := db.ReadSince(crypto.HashString("email:jelle@vandenhooff.name"), 0)
-			bytes, _ := json.MarshalIndent(history, "", "  ")
-			w.Write(bytes)
-		})
-
-		http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
-			status := &Status{
-				PublicKey:  s.config.PublicKey,
-				Upstream:   s.config.Upstream,
-				TotalNodes: s.dedup.NumNodes(),
-			}
-
-			bytes, _ := json.MarshalIndent(status, "", "  ")
-			w.Write(bytes)
-		})
-	*/
 
 	s.addHandlers(http.DefaultServeMux)
+	// http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	http.Serve(socket, http.DefaultServeMux)
-	/*
-		http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
-		http.Handle("/dkim/", http.StripPrefix("/dkim", runDKIMServer()))
-		go http.Serve(socket, nil)
-	*/
 }

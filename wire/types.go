@@ -19,24 +19,9 @@ type TrieLeaf struct {
 	EntryHash crypto.Hash
 }
 
-type UpdateRequest struct {
-	SignedEntry *SignedEntry
-}
-
-type UpdateReply struct {
-}
-
 type TrieNode struct {
-	ChildHashes *[2]crypto.Hash
-	Leaf        *TrieLeaf
-}
-
-type TrieNodeRequest struct {
-	Hash crypto.Hash
-}
-
-type TrieNodeReply struct {
-	Node *TrieNode
+	ChildHashes *[2]crypto.Hash `json:",omitempty"`
+	Leaf        *TrieLeaf       `json:",omitempty"`
 }
 
 type Root struct {
@@ -47,21 +32,6 @@ type Root struct {
 type SignedRoot struct {
 	Root      *Root
 	Signature string
-}
-
-type RootRequest struct {
-}
-
-type RootReply struct {
-	SignedRoot *SignedRoot
-}
-
-type UpdateBatchRequest struct {
-	RootHash crypto.Hash
-}
-
-type UpdateBatchReply struct {
-	UpdateBatch *UpdateBatch
 }
 
 type UpdateBatch struct {
@@ -79,23 +49,9 @@ type SignedTrieLookup struct {
 	TrieLookup *TrieLookup
 }
 
-type LookupRequest struct {
-	Hash       crypto.Hash
-	PublicKeys []string
-}
-
 type LookupReply struct {
 	SignedTrieLookups map[string]*SignedTrieLookup
 	Entry             *Entry
-}
-
-type HistoryRequest struct {
-	Hash  crypto.Hash
-	Since uint64
-}
-
-type HistoryReply struct {
-	Update *SignedEntry
 }
 
 type DKIMStatement struct {
@@ -110,19 +66,7 @@ type DKIMUpdate struct {
 	Expiration uint64
 }
 
-type DKIMPrepareRequest struct {
-	Statement *DKIMStatement
-}
-
-type DKIMPrepareReply struct {
-	Email string
-}
-
-type DKIMPollRequest struct {
-	Email string
-}
-
-type DKIMPollReply struct {
+type DKIMStatus struct {
 	Proof      string
 	Status     []string
 	Expiration uint64
