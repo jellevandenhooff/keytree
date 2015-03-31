@@ -13,9 +13,6 @@ TODO
 
 * tests
 
-* add back-off logic to rpc
-* add reconnect logic to rpc
-
 * allow idempotent submitting of updates without error?
 
 MAYBE:
