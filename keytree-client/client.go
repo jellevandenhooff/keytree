@@ -9,6 +9,7 @@ import (
 	"net/rpc"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"time"
@@ -202,7 +203,11 @@ func main() {
 
 			email := reply.Email
 
-			if err := exec.Command("/usr/bin/open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
+			if runtime.GOOS == "darwin" {
+				if err := exec.Command("/usr/bin/open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
+					log.Panicln(err)
+				}
+			} else {
 				fmt.Printf("To verify e-mail ownership, send an e-mail to %s with subject %s.\n", email, statement.Token)
 			}
 

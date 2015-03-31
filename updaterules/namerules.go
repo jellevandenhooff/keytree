@@ -7,7 +7,7 @@ import (
 
 const allowedKeyNameCharacters = "abcdefghijklmnopqrstuvwxyz1234567890-_:"
 
-const allowedKeyValueCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890=-_.,:@()/\\\"'"
+const allowedKeyValueCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890=-+_.,:@()/\\\"' \r\n"
 
 func CheckKey(name, value string) error {
 	for _, c := range name {
