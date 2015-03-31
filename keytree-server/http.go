@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -159,8 +158,6 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println(hash)
-
 	sinceString := r.URL.Query().Get("since")
 	var since uint64
 	if sinceString != "" {
@@ -232,6 +229,7 @@ func (s *Server) handleUpdateBatch(w http.ResponseWriter, r *http.Request) {
 	batch, ok := s.updateCache.get(hash)
 	if !ok {
 		replyJSON(w, nil)
+		return
 	}
 
 	replyJSON(w, batch)
