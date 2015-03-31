@@ -9,7 +9,6 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/trie/dedup"
 	"github.com/jellevandenhooff/keytree/trie/mirror"
 	"github.com/jellevandenhooff/keytree/unixtime"
 	"github.com/jellevandenhooff/keytree/updaterules"
@@ -34,7 +33,7 @@ type Server struct {
 	signer *crypto.Signer
 
 	// global instances
-	dedup       *dedup.Dedup
+	dedup       *trie.Dedup
 	coordinator *mirror.Coordinator   // anti-entropy coordinator
 	verifier    *updaterules.Verifier // update verifier
 	db          DB                    // stores all data for the current local trie, thread-safe

@@ -1,10 +1,9 @@
-package dedup
+package trie
 
 import (
 	"sync"
 
 	"github.com/jellevandenhooff/keytree/crypto"
-	"github.com/jellevandenhooff/keytree/trie"
 )
 
 // A Dedup helps store only one of multiple identical trie nodes.  A Dedup is
@@ -14,7 +13,7 @@ type Dedup struct {
 	nodes map[crypto.Hash]dedupInfo
 }
 
-func New() *Dedup {
+func NewDedup() *Dedup {
 	return &Dedup{
 		nodes: make(map[crypto.Hash]dedupInfo),
 	}
@@ -22,10 +21,10 @@ func New() *Dedup {
 
 type dedupInfo struct {
 	refs int
-	node *trie.Node
+	node *Node
 }
 
-func (d *Dedup) add(node *trie.Node, count int) *trie.Node {
+func (d *Dedup) add(node *Node, count int) *Node {
 	if node == nil {
 		return node
 	}
@@ -45,21 +44,21 @@ func (d *Dedup) add(node *trie.Node, count int) *trie.Node {
 	return node
 }
 
-func (d *Dedup) Add(node *trie.Node) *trie.Node {
+func (d *Dedup) Add(node *Node) *Node {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	return d.add(node, 1)
 }
 
-func (d *Dedup) AddMany(node *trie.Node, count int) *trie.Node {
+func (d *Dedup) AddMany(node *Node, count int) *Node {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	return d.add(node, count)
 }
 
-func (d *Dedup) findAndAdd(hash crypto.Hash, count int) *trie.Node {
+func (d *Dedup) findAndAdd(hash crypto.Hash, count int) *Node {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -72,15 +71,15 @@ func (d *Dedup) findAndAdd(hash crypto.Hash, count int) *trie.Node {
 	}
 }
 
-func (d *Dedup) FindAndAdd(hash crypto.Hash) *trie.Node {
+func (d *Dedup) FindAndAdd(hash crypto.Hash) *Node {
 	return d.findAndAdd(hash, 1)
 }
 
-func (d *Dedup) FindAndDoNotAdd(hash crypto.Hash) *trie.Node {
+func (d *Dedup) FindAndDoNotAdd(hash crypto.Hash) *Node {
 	return d.findAndAdd(hash, 0)
 }
 
-func (d *Dedup) remove(node *trie.Node) {
+func (d *Dedup) remove(node *Node) {
 	if node == nil {
 		return
 	}
@@ -95,7 +94,7 @@ func (d *Dedup) remove(node *trie.Node) {
 	}
 }
 
-func (d *Dedup) Remove(node *trie.Node) {
+func (d *Dedup) Remove(node *Node) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/trie/dedup"
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
@@ -71,7 +70,7 @@ func (ub *updateCache) add(hash crypto.Hash, batch *wire.UpdateBatch) {
 // The tries are stored in a last-in first-out circular queue.
 type trieCache struct {
 	// Backing dedup.
-	dedup *dedup.Dedup
+	dedup *trie.Dedup
 
 	// Recent tries. Initially, all tries are nil.
 	recentTries []*trie.Node
@@ -81,7 +80,7 @@ type trieCache struct {
 }
 
 // Construct a new trieCache using dedup with given capacity.
-func newTrieCache(dedup *dedup.Dedup, capacity int) *trieCache {
+func newTrieCache(dedup *trie.Dedup, capacity int) *trieCache {
 	return &trieCache{
 		dedup:       dedup,
 		recentTries: make([]*trie.Node, capacity),

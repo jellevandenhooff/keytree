@@ -7,7 +7,6 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/trie/dedup"
 	"github.com/jellevandenhooff/keytree/wire"
 	"golang.org/x/net/context"
 )
@@ -85,14 +84,14 @@ func (wq *workQueue) Pop() interface{} {
 // to download it gives up.
 type Coordinator struct {
 	// read-only
-	dedup *dedup.Dedup
+	dedup *trie.Dedup
 
 	// pending work protected by mu
 	mu      sync.Mutex
 	pending map[crypto.Hash]*work
 }
 
-func NewCoordinator(dedup *dedup.Dedup) *Coordinator {
+func NewCoordinator(dedup *trie.Dedup) *Coordinator {
 	return &Coordinator{
 		dedup:   dedup,
 		pending: make(map[crypto.Hash]*work),
