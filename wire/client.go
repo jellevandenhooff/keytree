@@ -52,6 +52,7 @@ func (c *client) success() {
 func (c *client) failure() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	// detect if we're already locked... if so, do nothing? (case of 8 simultaneous failures)
 
 	time.Sleep(backoff(c.retries))
 	c.retries += 1

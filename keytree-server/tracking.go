@@ -73,7 +73,7 @@ func (t *tracker) fixup(h crypto.Hash) {
 		update, err := t.conn.History(h, since)
 		if err == wire.ErrNotFound {
 			break
-		} else if err == nil {
+		} else if err != nil {
 			log.Println(err)
 			return
 		}
