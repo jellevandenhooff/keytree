@@ -168,7 +168,6 @@ func main() {
 		signatures[oldPublic], _ = crypto.Sign(oldPrivate, newEntry)
 	}
 
-	// todo: write all submitted updates to storage?
 	// todo: determine if we need a proof of ownership!
 	if len(signatures) == 0 {
 		token := updaterules.TokenForEntry(newEntry)

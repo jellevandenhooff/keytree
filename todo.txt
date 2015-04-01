@@ -1,5 +1,4 @@
 TODO
-* use glog
 * status information
 
 * provide go and js API
@@ -10,16 +9,18 @@ TODO
 * make sure there is no html injection possible
 * check for memory leaks
 
-* tests
+MAYBE:
+* use glog
 
 * allow idempotent submitting of updates without error?
 
-MAYBE:
 * think about how to make lookups never fail in the face of concurrent updates
 * think about 'records travelling back in time' with lookups in clients
 * allow server admin to delete entries
 
 * serve lookup hashes for servers that currently disagree?
+
+* write all submitted updates to storage?
 
 LATER:
 * add rate limits
