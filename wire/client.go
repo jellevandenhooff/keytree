@@ -222,7 +222,7 @@ func (c *DKIMClient) Prepare(req *DKIMStatement) (string, error) {
 
 func (c *DKIMClient) Poll(req string) (*DKIMStatus, error) {
 	var reply DKIMStatus
-	if err := c.client.get(fmt.Sprintf("/dkim/status?email=%s", req), &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/dkim/poll?email=%s", req), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
