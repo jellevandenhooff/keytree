@@ -30,17 +30,6 @@ func parseNameOrHash(r *http.Request) (crypto.Hash, error) {
 	return crypto.HashString(nameString), nil
 }
 
-func replyJSON(w http.ResponseWriter, v interface{}) {
-	bytes, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
-}
-
 func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -53,16 +42,16 @@ func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
 	node := s.dedup.FindAndDoNotAdd(hash)
 
 	if node == nil {
-		replyJSON(w, nil)
+		wire.ReplyJSON(w, nil)
 		return
 	}
 
 	if node.Entry != nil {
-		replyJSON(w, &wire.TrieNode{
+		wire.ReplyJSON(w, &wire.TrieNode{
 			Leaf: node.Entry,
 		})
 	} else {
-		replyJSON(w, &wire.TrieNode{
+		wire.ReplyJSON(w, &wire.TrieNode{
 			ChildHashes: &[2]crypto.Hash{node.Children[0].Hash(), node.Children[1].Hash()},
 		})
 	}
@@ -107,7 +96,7 @@ func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	replyJSON(w, &wire.LookupReply{
+	wire.ReplyJSON(w, &wire.LookupReply{
 		Entry:             entry,
 		SignedTrieLookups: lookups,
 	})
@@ -146,7 +135,7 @@ func (s *Server) handleBrowse(w http.ResponseWriter, r *http.Request) {
 		hash = leaf.NameHash
 	}
 
-	replyJSON(w, entries)
+	wire.ReplyJSON(w, entries)
 }
 
 func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +166,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replyJSON(w, update)
+	wire.ReplyJSON(w, update)
 }
 
 func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +175,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	/*
-		replyJSON(w, &Status{
+		wire.ReplyJSON(w, &Status{
 			PublicKey:  s.config.PublicKey,
 			Upstream:   s.config.Upstream,
 			TotalNodes: s.dedup.NumNodes(),
@@ -214,7 +203,7 @@ func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	replyJSON(w, err)
+	wire.ReplyJSON(w, err)
 }
 
 func (s *Server) handleUpdateBatch(w http.ResponseWriter, r *http.Request) {
@@ -228,11 +217,11 @@ func (s *Server) handleUpdateBatch(w http.ResponseWriter, r *http.Request) {
 
 	batch, ok := s.updateCache.get(hash)
 	if !ok {
-		replyJSON(w, nil)
+		wire.ReplyJSON(w, nil)
 		return
 	}
 
-	replyJSON(w, batch)
+	wire.ReplyJSON(w, batch)
 }
 
 func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
@@ -241,7 +230,7 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	replyJSON(w, s.localTrie.signedRoot)
+	wire.ReplyJSON(w, s.localTrie.signedRoot)
 }
 
 func (s *Server) addHandlers(mux *http.ServeMux) {

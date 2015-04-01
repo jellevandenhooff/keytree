@@ -74,17 +74,6 @@ func (s *Server) handleMail(m *smtp.Mail) {
 	update.Proof = verified.CanonHeaders()
 }
 
-func replyJSON(w http.ResponseWriter, v interface{}) {
-	bytes, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	w.Write(bytes)
-}
-
 func (s *Server) handlePrepare(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -110,7 +99,7 @@ func (s *Server) handlePrepare(w http.ResponseWriter, r *http.Request) {
 		Expiration: unixtime.Now() + 15*60,
 	}
 
-	replyJSON(w, email)
+	wire.ReplyJSON(w, email)
 }
 
 func (s *Server) handlePoll(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +113,7 @@ func (s *Server) handlePoll(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 	}
 
-	replyJSON(w, &wire.DKIMStatus{
+	wire.ReplyJSON(w, &wire.DKIMStatus{
 		Proof:      update.Proof,
 		Status:     update.Status,
 		Expiration: update.Expiration,
