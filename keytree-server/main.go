@@ -76,9 +76,7 @@ func main() {
 	trackers := make(map[string]*tracker)
 	allTries := make(map[string]*lookupTrie)
 
-	dnsClient := &dns.SimpleDNSClient{
-		Server: config.DNSServer,
-	}
+	dnsClient := dns.NewCachingDNSClient(config.DNSServer)
 
 	s := &Server{
 		config: config,

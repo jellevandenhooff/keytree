@@ -3,7 +3,9 @@ package dns
 import (
 	"errors"
 	"strings"
+	"time"
 
+	"github.com/hashicorp/golang-lru"
 	"github.com/miekg/dns"
 )
 
@@ -49,4 +51,47 @@ func (s *SimpleDNSClient) LookupTxt(hostname string) ([]string, error) {
 		res = append(res, strings.Join(txt.Txt, ""))
 	}
 	return res, nil
+}
+
+type CachingDNSClient struct {
+	underlying *SimpleDNSClient
+	cache      *lru.Cache
+}
+
+const cacheSize = 8192
+const lifetime = 1 * time.Hour
+
+type cacheItem struct {
+	result  []string
+	expires time.Time
+}
+
+func NewCachingDNSClient(server string) *CachingDNSClient {
+	cache, _ := lru.New(cacheSize)
+
+	return &CachingDNSClient{
+		underlying: &SimpleDNSClient{Server: server},
+		cache:      cache,
+	}
+}
+
+func (c *CachingDNSClient) LookupTxt(hostname string) ([]string, error) {
+	value, ok := c.cache.Get(hostname)
+	if ok {
+		item := value.(*cacheItem)
+		if time.Now().Before(item.expires) {
+			return item.result, nil
+		}
+	}
+
+	result, err := c.underlying.LookupTxt(hostname)
+	if err != nil {
+		return nil, err
+	}
+
+	c.cache.Add(hostname, &cacheItem{
+		result:  result,
+		expires: time.Now().Add(lifetime),
+	})
+	return result, nil
 }
