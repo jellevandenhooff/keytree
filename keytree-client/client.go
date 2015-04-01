@@ -163,7 +163,7 @@ func main() {
 	}
 
 	// todo: determine if we need a proof of ownership!
-	if len(signatures) == 0 {
+	if len(signatures) == 0 || newPublic != oldPublic {
 		token := updaterules.TokenForEntry(newEntry)
 		if strings.HasPrefix(name, "email:") {
 			statement := &wire.DKIMStatement{
@@ -178,7 +178,6 @@ func main() {
 			if err != nil {
 				log.Panicln(err)
 			}
-
 
 			fmt.Printf("To verify e-mail ownership, send an e-mail to %s with subject %s.\n", email, statement.Token)
 			if runtime.GOOS == "darwin" {
