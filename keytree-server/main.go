@@ -113,7 +113,7 @@ func main() {
 
 	s.addHandlers(mux)
 	dkimServer.AddHandlers(mux)
-	mux.Handle("/", http.FileServer(http.Dir("static")))
+	mux.Handle("/", http.FileServer(http.Dir("web")))
 
 	server := &http.Server{
 		ReadTimeout: 10 * time.Second,
