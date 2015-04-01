@@ -8,9 +8,9 @@ import (
 
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/mirror"
+	"github.com/jellevandenhooff/keytree/rules"
 	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/unixtime"
-	"github.com/jellevandenhooff/keytree/updaterules"
 	"github.com/jellevandenhooff/keytree/wire"
 
 	"golang.org/x/net/context"
@@ -33,9 +33,9 @@ type Server struct {
 
 	// global instances
 	dedup       *trie.Dedup
-	coordinator *mirror.Coordinator   // anti-entropy coordinator
-	verifier    *updaterules.Verifier // update verifier
-	db          DB                    // stores all data for the current local trie, thread-safe
+	coordinator *mirror.Coordinator // anti-entropy coordinator
+	verifier    *rules.Verifier     // update verifier
+	db          DB                  // stores all data for the current local trie, thread-safe
 
 	// updates and distribution
 	updateCache    *updateCache       // provides channels with updates
@@ -89,7 +89,7 @@ func (s *Server) processUpdates() {
 		case req := <-s.updateRequests:
 			update := req.update
 
-			if err := updaterules.CheckUpdate(update); err != nil {
+			if err := rules.CheckUpdate(update); err != nil {
 				req.result <- err
 				break
 			}
@@ -110,15 +110,15 @@ func (s *Server) processUpdates() {
 				}
 			}
 
-			var window updaterules.Window
+			var window rules.Window
 			now := unixtime.Now()
 			if catchUpRecoveryEnabled {
-				window = updaterules.Window{
+				window = rules.Window{
 					Start: catchUpRecoveryCutoff - 15*60,
 					End:   now + 15*60,
 				}
 			} else {
-				window = updaterules.Window{
+				window = rules.Window{
 					Start: now - 15*60,
 					End:   now + 15*60,
 				}

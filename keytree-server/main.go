@@ -13,8 +13,8 @@ import (
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
 	"github.com/jellevandenhooff/keytree/mirror"
+	"github.com/jellevandenhooff/keytree/rules"
 	"github.com/jellevandenhooff/keytree/trie"
-	"github.com/jellevandenhooff/keytree/updaterules"
 
 	"golang.org/x/net/context"
 )
@@ -97,7 +97,7 @@ func main() {
 		trackers: trackers,
 		allTries: allTries,
 
-		verifier: updaterules.NewVerifier(dnsClient),
+		verifier: rules.NewVerifier(dnsClient),
 	}
 	s.setAndSignRoot(root)
 

@@ -14,9 +14,9 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/rules"
 	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/unixtime"
-	"github.com/jellevandenhooff/keytree/updaterules"
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
@@ -164,7 +164,7 @@ func main() {
 
 	// todo: determine if we need a proof of ownership!
 	if len(signatures) == 0 || newPublic != oldPublic {
-		token := updaterules.TokenForEntry(newEntry)
+		token := rules.TokenForEntry(newEntry)
 		if strings.HasPrefix(name, "email:") {
 			statement := &wire.DKIMStatement{
 				Sender: strings.TrimPrefix(name, "email:"),

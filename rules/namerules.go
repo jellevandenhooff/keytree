@@ -1,4 +1,4 @@
-package updaterules
+package rules
 
 import (
 	"errors"
