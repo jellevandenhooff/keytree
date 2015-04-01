@@ -14,8 +14,6 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/jellevandenhooff/keytree/crypto"
-	"github.com/jellevandenhooff/keytree/dkimproof"
-	"github.com/jellevandenhooff/keytree/dns"
 	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/unixtime"
 	"github.com/jellevandenhooff/keytree/updaterules"
@@ -25,7 +23,7 @@ import (
 var server = flag.String("server", "localhost:8000", "URL of Keytree server")
 
 func usage() {
-	fmt.Printf("Usage: %s [flags] <name> [key=value]...\nFlags:\n", os.Args[0])
+	fmt.Printf("Usage: %s [update|lookup] [flags] <name> [key=value]...\nFlags:\n", os.Args[0])
 	flag.PrintDefaults()
 }
 
@@ -33,10 +31,6 @@ func main() {
 	publicKeys := []string{
 		//"ed25519-pub(xmmqz7cvgdd9ewa79vw9cw9qvemyd4x3zsaftacc2jqqm4nfzw20)",
 		"ed25519-pub(26wj522ncyprkc0t9yr1e1cz2szempbddkay02qqqxqkjnkbnygg)",
-	}
-
-	dnsClient := &dns.SimpleDNSClient{
-		Server: "8.8.4.4:53",
 	}
 
 	flag.Usage = usage
@@ -214,11 +208,6 @@ func main() {
 				}
 
 				proof = reply.Proof
-			}
-
-			if err := dkimproof.CheckPlainEmail(proof, statement, dnsClient); err != nil {
-				fmt.Printf("Got a DKIM proof from the server that we can't verify: %s\n", err)
-				os.Exit(1)
 			}
 
 			signatures["dkim"] = proof

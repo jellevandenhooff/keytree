@@ -35,7 +35,7 @@ func backoff(retries int) time.Duration {
 	return backoff
 }
 
-type client struct {
+type Client struct {
 	host       string
 	httpClient *http.Client
 
@@ -44,14 +44,14 @@ type client struct {
 	waiting chan struct{}
 }
 
-func (c *client) success() {
+func (c *Client) success() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.retries = 0
 }
 
-func (c *client) failure() {
+func (c *Client) failure() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -70,7 +70,7 @@ func (c *client) failure() {
 	c.retries += 1
 }
 
-func (c *client) await() {
+func (c *Client) await() {
 	c.mu.Lock()
 	w := c.waiting
 	c.mu.Unlock()
@@ -80,7 +80,7 @@ func (c *client) await() {
 	}
 }
 
-func (c *client) process(err *error) {
+func (c *Client) process(err *error) {
 	if *err != nil {
 		c.failure()
 	} else {
@@ -100,7 +100,7 @@ func decode(resp *http.Response, reply interface{}) error {
 	return dec.Decode(reply)
 }
 
-func (c *client) get(path string, reply interface{}) (err error) {
+func (c *Client) Get(path string, reply interface{}) (err error) {
 	c.await()
 	defer c.process(&err)
 
@@ -112,7 +112,7 @@ func (c *client) get(path string, reply interface{}) (err error) {
 	return decode(resp, reply)
 }
 
-func (c *client) post(path string, request, reply interface{}) (err error) {
+func (c *Client) Post(path string, request, reply interface{}) (err error) {
 	c.await()
 	defer c.process(&err)
 
@@ -129,8 +129,8 @@ func (c *client) post(path string, request, reply interface{}) (err error) {
 	return decode(resp, reply)
 }
 
-func newClient(host string) *client {
-	return &client{
+func NewClient(host string) *Client {
+	return &Client{
 		host: host,
 		httpClient: &http.Client{
 			Timeout: 20 * time.Second,
@@ -139,21 +139,21 @@ func newClient(host string) *client {
 }
 
 type KeyTreeClient struct {
-	client *client
+	client *Client
 }
 
 func NewKeyTreeClient(host string) *KeyTreeClient {
-	return &KeyTreeClient{client: newClient(host)}
+	return &KeyTreeClient{client: NewClient(host)}
 }
 
 func (c *KeyTreeClient) Submit(update *SignedEntry) error {
 	var reply interface{}
-	return c.client.post("/keytree/submit", update, &reply)
+	return c.client.Post("/keytree/submit", update, &reply)
 }
 
 func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
 	var reply *TrieNode
-	if err := c.client.get(fmt.Sprintf("/keytree/trienode?hash=%s", h), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/keytree/trienode?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
@@ -167,7 +167,7 @@ func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
 
 func (c *KeyTreeClient) Root() (*SignedRoot, error) {
 	var reply SignedRoot
-	if err := c.client.get("/keytree/root", &reply); err != nil {
+	if err := c.client.Get("/keytree/root", &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -178,7 +178,7 @@ func (c *KeyTreeClient) Root() (*SignedRoot, error) {
 
 func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
 	var reply *UpdateBatch
-	if err := c.client.get(fmt.Sprintf("/keytree/updatebatch?hash=%s", h), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/keytree/updatebatch?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
@@ -192,7 +192,7 @@ func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
 
 func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
 	var reply LookupReply
-	if err := c.client.get(fmt.Sprintf("/keytree/lookup?hash=%s", h), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/keytree/lookup?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -203,7 +203,7 @@ func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
 
 func (c *KeyTreeClient) History(h crypto.Hash, since uint64) (*SignedEntry, error) {
 	var reply *SignedEntry
-	if err := c.client.get(fmt.Sprintf("/keytree/history?hash=%s&since=%d", h, since), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/keytree/history?hash=%s&since=%d", h, since), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
@@ -216,16 +216,16 @@ func (c *KeyTreeClient) History(h crypto.Hash, since uint64) (*SignedEntry, erro
 }
 
 type DKIMClient struct {
-	client *client
+	client *Client
 }
 
 func NewDKIMClient(host string) *DKIMClient {
-	return &DKIMClient{client: newClient(host)}
+	return &DKIMClient{client: NewClient(host)}
 }
 
 func (c *DKIMClient) Prepare(req *DKIMStatement) (string, error) {
 	var reply string
-	if err := c.client.post("/dkim/prepare", req, &reply); err != nil {
+	if err := c.client.Post("/dkim/prepare", req, &reply); err != nil {
 		return "", err
 	}
 	return reply, nil
@@ -233,7 +233,7 @@ func (c *DKIMClient) Prepare(req *DKIMStatement) (string, error) {
 
 func (c *DKIMClient) Poll(req string) (*DKIMStatus, error) {
 	var reply DKIMStatus
-	if err := c.client.get(fmt.Sprintf("/dkim/poll?email=%s", req), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/dkim/poll?email=%s", req), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {

@@ -169,20 +169,6 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 	wire.ReplyJSON(w, update)
 }
 
-func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		http.NotFound(w, r)
-	}
-
-	/*
-		wire.ReplyJSON(w, &Status{
-			PublicKey:  s.config.PublicKey,
-			Upstream:   s.config.Upstream,
-			TotalNodes: s.dedup.NumNodes(),
-		})
-	*/
-}
-
 func (s *Server) handleSubmit(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -234,10 +220,6 @@ func (s *Server) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) addHandlers(mux *http.ServeMux) {
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		s.handleIndex(w, r)
-	})
-
 	mux.HandleFunc("/keytree/lookup", func(w http.ResponseWriter, r *http.Request) {
 		s.handleLookup(w, r)
 	})

@@ -18,7 +18,7 @@ const configName = "keytree-server.config"
 const databaseName = "keytree-server.boltdb"
 
 var dataDir = flag.String("data-dir", "data", "Where to keep data.")
-var listenAddr = flag.String("listenAddr", ":8000", "Address to listen on.")
+var listenAddr = flag.String("listen-addr", ":http", "Address to listen on.")
 
 var catchUpRecoveryString = flag.String("catch-up-recovery", "", "Run Keytree in recovery mode allowing keys up to `catch-up-recovery` time old. Format should be a floating-point number followed by a single character indicating 'h'ours, 'd'ays, 'm'onths, or 'y'ears.")
 

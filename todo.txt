@@ -22,6 +22,8 @@ MAYBE:
 
 * write all submitted updates to storage?
 
+* build the "recovery mode" for consensus without coordination
+
 LATER:
 * add rate limits
 
