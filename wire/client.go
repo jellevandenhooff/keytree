@@ -17,10 +17,11 @@ import (
 var ErrNotFound = errors.New("not found")
 
 func backoff(retries int) time.Duration {
-	backoff, max := 1*time.Second, 10*time.Second
-	for backoff < max && retries > 0 {
+	backoff := 1 * time.Second
+	max := 60 * time.Second
+
+	for i := 0; i < retries && backoff < max; i++ {
 		backoff = backoff * 2
-		retries--
 	}
 	if backoff > max {
 		backoff = max
@@ -30,6 +31,7 @@ func backoff(retries int) time.Duration {
 	if backoff < 0 {
 		return 0
 	}
+
 	return backoff
 }
 
@@ -39,6 +41,7 @@ type client struct {
 
 	mu      sync.Mutex
 	retries int
+	waiting chan struct{}
 }
 
 func (c *client) success() {
@@ -51,19 +54,38 @@ func (c *client) success() {
 func (c *client) failure() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// detect if we're already locked... if so, do nothing? (case of 8 simultaneous failures)
 
-	time.Sleep(backoff(c.retries))
+	if c.waiting != nil {
+		return
+	}
+
+	c.waiting = make(chan struct{})
+	time.AfterFunc(backoff(c.retries), func() {
+		c.mu.Lock()
+		defer c.mu.Unlock()
+
+		close(c.waiting)
+		c.waiting = nil
+	})
 	c.retries += 1
 }
 
 func (c *client) await() {
 	c.mu.Lock()
-	defer c.mu.Unlock()
+	w := c.waiting
+	c.mu.Unlock()
+
+	if w != nil {
+		<-w
+	}
 }
 
-type KeyTreeClient struct {
-	client *client
+func (c *client) process(err *error) {
+	if *err != nil {
+		c.failure()
+	} else {
+		c.success()
+	}
 }
 
 func decode(resp *http.Response, reply interface{}) error {
@@ -80,14 +102,7 @@ func decode(resp *http.Response, reply interface{}) error {
 
 func (c *client) get(path string, reply interface{}) (err error) {
 	c.await()
-
-	defer func() {
-		if err == nil {
-			c.success()
-		} else {
-			c.failure()
-		}
-	}()
+	defer c.process(&err)
 
 	resp, err := c.httpClient.Get(c.host + path)
 	if err != nil {
@@ -99,16 +114,8 @@ func (c *client) get(path string, reply interface{}) (err error) {
 
 func (c *client) post(path string, request, reply interface{}) (err error) {
 	c.await()
+	defer c.process(&err)
 
-	defer func() {
-		if err == nil {
-			c.success()
-		} else {
-			c.failure()
-		}
-	}()
-
-	// TODO: Use a pool of buffers?
 	buffer := new(bytes.Buffer)
 	if err := json.NewEncoder(buffer).Encode(request); err != nil {
 		return err
@@ -129,6 +136,10 @@ func newClient(host string) *client {
 			Timeout: 20 * time.Second,
 		},
 	}
+}
+
+type KeyTreeClient struct {
+	client *client
 }
 
 func NewKeyTreeClient(host string) *KeyTreeClient {
