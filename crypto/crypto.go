@@ -92,7 +92,7 @@ type Signable interface {
 }
 
 func GenerateEd25519KeypairFromSecret(secret, salt string) (public string, private string) {
-	derived, err := scrypt.Key([]byte(secret), []byte(salt), 16384, 8, 1, 32)
+	derived, err := scrypt.Key([]byte(secret), []byte(salt), 1<<14, 8, 1, 32)
 	if err != nil {
 		log.Fatal(err)
 	}
