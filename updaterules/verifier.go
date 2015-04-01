@@ -81,6 +81,7 @@ type changeInfo struct {
 	changedKeys              map[string]bool
 	hadKeytreeKey            bool
 	hasValidKeytreeSignature bool
+	hasChangedKeytreeKey     bool
 	hasValidOwnershipProof   bool
 }
 
@@ -123,6 +124,13 @@ func (v *Verifier) getChangeInfo(old *wire.Entry, update *wire.SignedEntry) *cha
 		}
 	}
 
+	hasChangedKeytreeKey := false
+	for name := range changedKeys {
+		if strings.HasPrefix(name, "keytree:") {
+			hasChangedKeytreeKey = true
+		}
+	}
+
 	hasValidOwnershipProof := v.CheckProofOfOwnership(update) == nil
 
 	return &changeInfo{
@@ -130,6 +138,7 @@ func (v *Verifier) getChangeInfo(old *wire.Entry, update *wire.SignedEntry) *cha
 		changedKeys:              changedKeys,
 		hadKeytreeKey:            hadKeytreeKey,
 		hasValidKeytreeSignature: hasValidKeytreeSignature,
+		hasChangedKeytreeKey:     hasChangedKeytreeKey,
 		hasValidOwnershipProof:   hasValidOwnershipProof,
 	}
 }
@@ -190,8 +199,8 @@ func (v *Verifier) VerifyUpdate(old *wire.Entry, update *wire.SignedEntry, now W
 		return errors.New("need valid signature without valid override")
 	}
 
-	if info.changedKeys["keytree:recovery"] && !info.validSignatures["keytree:recovery"] && !info.hasValidOwnershipProof {
-		return errors.New("need proof of ownership to change recovery key")
+	if info.hasChangedKeytreeKey && !info.validSignatures["keytree:recovery"] && !info.hasValidOwnershipProof {
+		return errors.New("need proof of ownership to change a keytree key")
 	}
 
 	return nil
