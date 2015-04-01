@@ -110,7 +110,7 @@ func main() {
 	newEntry := &wire.Entry{
 		Name:       name,
 		Keys:       make(map[string]string),
-		Timestamp:  unixtime.Now() - 10, // build in some slack if our clock is ahead
+		Timestamp:  unixtime.Now(),
 		InRecovery: false,
 	}
 
