@@ -33,7 +33,7 @@ func CheckName(name string) error {
 	return nil
 }
 
-const allowedLocalCharacters = "abcdefghijklmnopqrstuvwxyz1234567890-_"
+const allowedLocalCharacters = "abcdefghijklmnopqrstuvwxyz1234567890-_."
 const allowedDomainCharacters = "abcdefghijklmnopqrstuvwxyz1234567890-_."
 
 func CheckEmail(name string) error {
