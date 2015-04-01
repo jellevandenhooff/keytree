@@ -212,12 +212,7 @@ func (s *Server) spawnTrackers(ctx context.Context) {
 	defer s.mu.Unlock()
 
 	for _, serverInfo := range s.config.Upstream {
-		t, err := runTracker(ctx, s, serverInfo.Address, serverInfo.PublicKey)
-		if err != nil {
-			log.Println(err)
-			continue
-		}
-		s.trackers[serverInfo.PublicKey] = t
+		s.trackers[serverInfo.PublicKey] = runTracker(ctx, s, serverInfo.Address, serverInfo.PublicKey)
 	}
 }
 

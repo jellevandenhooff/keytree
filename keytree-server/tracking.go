@@ -127,7 +127,7 @@ func (t *tracker) reconcile(local, remote *trie.Node, depth int) error {
 	return nil
 }
 
-func runTracker(ctx context.Context, s *Server, address string, publicKey string) (*tracker, error) {
+func runTracker(ctx context.Context, s *Server, address string, publicKey string) *tracker {
 	log.Printf("spawning tracker for %s at %s", publicKey, address)
 
 	conn := wire.NewKeyTreeClient("http://" + address)
@@ -148,5 +148,5 @@ func runTracker(ctx context.Context, s *Server, address string, publicKey string
 	}
 	go t.mirror.Run()
 
-	return t, nil
+	return t
 }
