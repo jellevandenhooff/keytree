@@ -20,7 +20,7 @@ import (
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
-var server = flag.String("server", "localhost:8000", "URL of Keytree server")
+var server = flag.String("server", "keytree.io", "URL of Keytree server")
 
 func usage() {
 	fmt.Printf("Usage: %s [update|lookup] [flags] <name> [key=value]...\nFlags:\n", os.Args[0])
