@@ -179,6 +179,8 @@ func main() {
 				log.Panicln(err)
 			}
 
+
+			fmt.Printf("To verify e-mail ownership, send an e-mail to %s with subject %s.\n", email, statement.Token)
 			if runtime.GOOS == "darwin" {
 				if err := exec.Command("/usr/bin/open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
 					log.Panicln(err)
@@ -187,10 +189,7 @@ func main() {
 				if err := exec.Command("/usr/bin/xdg-open", fmt.Sprintf("mailto:%s?subject=%s", email, statement.Token)).Run(); err != nil {
 					log.Panicln(err)
 				}
-			} else {
-				fmt.Printf("To verify e-mail ownership, send an e-mail to %s with subject %s.\n", email, statement.Token)
 			}
-
 			fmt.Printf("Waiting for e-mail...\n")
 
 			idx := 0
