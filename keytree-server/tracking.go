@@ -1,5 +1,3 @@
-//go:generate stringer -type=TrackingMode
-
 package main
 
 import (

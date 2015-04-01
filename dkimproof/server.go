@@ -131,7 +131,7 @@ func (s *Server) handlePoll(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func RunServer(domain string, dnsClient dkim.DNSClient) (*http.ServeMux, error) {
+func RunServer(domain string, dnsClient dkim.DNSClient) (*Server, error) {
 	s := &Server{
 		domain:    domain,
 		pending:   make(map[string]*wire.DKIMUpdate),
@@ -148,14 +148,14 @@ func RunServer(domain string, dnsClient dkim.DNSClient) (*http.ServeMux, error) 
 	})
 
 	go s.run()
+	return s, nil
+}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/prepare", func(w http.ResponseWriter, r *http.Request) {
+func (s *Server) AddHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/dkim/prepare", func(w http.ResponseWriter, r *http.Request) {
 		s.handlePrepare(w, r)
 	})
-	mux.HandleFunc("/poll", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/dkim/poll", func(w http.ResponseWriter, r *http.Request) {
 		s.handlePoll(w, r)
 	})
-
-	return mux, nil
 }

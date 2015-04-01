@@ -249,31 +249,31 @@ func (s *Server) addHandlers(mux *http.ServeMux) {
 		s.handleIndex(w, r)
 	})
 
-	mux.HandleFunc("/lookup", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/lookup", func(w http.ResponseWriter, r *http.Request) {
 		s.handleLookup(w, r)
 	})
 
-	mux.HandleFunc("/updatebatch", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/updatebatch", func(w http.ResponseWriter, r *http.Request) {
 		s.handleUpdateBatch(w, r)
 	})
 
-	mux.HandleFunc("/root", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/root", func(w http.ResponseWriter, r *http.Request) {
 		s.handleRoot(w, r)
 	})
 
-	mux.HandleFunc("/trienode", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/trienode", func(w http.ResponseWriter, r *http.Request) {
 		s.handleTrieNode(w, r)
 	})
 
-	mux.HandleFunc("/history", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/history", func(w http.ResponseWriter, r *http.Request) {
 		s.handleHistory(w, r)
 	})
 
-	mux.HandleFunc("/browse", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/browse", func(w http.ResponseWriter, r *http.Request) {
 		s.handleBrowse(w, r)
 	})
 
-	mux.HandleFunc("/submit", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/keytree/submit", func(w http.ResponseWriter, r *http.Request) {
 		s.handleSubmit(w, r)
 	})
 }

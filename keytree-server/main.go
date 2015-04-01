@@ -25,7 +25,7 @@ type Status struct {
 	TotalNodes int
 }
 
-type CloseReader struct {
+type CloserReader struct {
 	io.Reader
 	io.Closer
 }
@@ -109,21 +109,22 @@ func main() {
 	dkimServer, err := dkimproof.RunServer("keytree.io", dnsClient)
 	if err != nil {
 		log.Printf("could not start DKIM server: %s", err)
-	} else {
-		http.Handle("/dkim/", http.StripPrefix("/dkim/", dkimServer))
 	}
 
-	s.addHandlers(http.DefaultServeMux)
+	mux := http.NewServeMux()
+
+	s.addHandlers(mux)
+	dkimServer.AddHandlers(mux)
 	// http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
 	server := &http.Server{
 		ReadTimeout: 10 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			r.Body = CloseReader{
+			r.Body = CloserReader{
 				Closer: r.Body,
 				Reader: io.LimitReader(r.Body, 64*1024),
 			}
-			http.DefaultServeMux.ServeHTTP(w, r)
+			mux.ServeHTTP(w, r)
 		}),
 	}
 

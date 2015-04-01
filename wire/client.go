@@ -137,12 +137,12 @@ func NewKeyTreeClient(host string) *KeyTreeClient {
 
 func (c *KeyTreeClient) Submit(update *SignedEntry) error {
 	var reply interface{}
-	return c.client.post("/submit", update, &reply)
+	return c.client.post("/keytree/submit", update, &reply)
 }
 
 func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
 	var reply *TrieNode
-	if err := c.client.get(fmt.Sprintf("/trienode?hash=%s", h), &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/keytree/trienode?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
@@ -156,7 +156,7 @@ func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
 
 func (c *KeyTreeClient) Root() (*SignedRoot, error) {
 	var reply SignedRoot
-	if err := c.client.get("/root", &reply); err != nil {
+	if err := c.client.get("/keytree/root", &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -167,7 +167,7 @@ func (c *KeyTreeClient) Root() (*SignedRoot, error) {
 
 func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
 	var reply *UpdateBatch
-	if err := c.client.get(fmt.Sprintf("/updatebatch?hash=%s", h), &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/keytree/updatebatch?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
@@ -181,7 +181,7 @@ func (c *KeyTreeClient) UpdateBatch(h crypto.Hash) (*UpdateBatch, error) {
 
 func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
 	var reply LookupReply
-	if err := c.client.get(fmt.Sprintf("/lookup?hash=%s", h), &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/keytree/lookup?hash=%s", h), &reply); err != nil {
 		return nil, err
 	}
 	if err := reply.Check(); err != nil {
@@ -192,7 +192,7 @@ func (c *KeyTreeClient) Lookup(h crypto.Hash) (*LookupReply, error) {
 
 func (c *KeyTreeClient) History(h crypto.Hash, since uint64) (*SignedEntry, error) {
 	var reply *SignedEntry
-	if err := c.client.get(fmt.Sprintf("/history?hash=%s&since=%d", h, since), &reply); err != nil {
+	if err := c.client.get(fmt.Sprintf("/keytree/history?hash=%s&since=%d", h, since), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {
