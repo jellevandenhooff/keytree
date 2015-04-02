@@ -4,43 +4,6 @@ body {
     width: 640px;
 }
 
-section {
-    padding-bottom: 64px;
-}
-
-h1, h2 {
-    margin-bottom: 32px;
-}
-
-form {
-    margin-top: 32px;
-}
-
-.nav a:active, a:focus {
-    outline: none;
-}
-
-.nav-tabs {
-    margin-bottom: 15px;
-}
-
 #logo {
-    padding-bottom: 30px;
-    font-size: 24px;
-}
-
-#logo img {
-    padding-bottom: 16px;
-}
-
-#update-alert {
-    margin-top: 16px;
-}
-
-#lookup-group {
-    margin-bottom: 32px;
-}
-
-#lookup-help a:active, #lookup-help a:focus {
-    text-decoration: none;
+    padding-bottom: 20px;
 }
