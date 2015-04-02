@@ -24,21 +24,21 @@ type dedupInfo struct {
 	node *Node
 }
 
-func (d *Dedup) add(node *Node, count int) *Node {
+func (d *Dedup) add(node *Node) *Node {
 	if node == nil {
 		return node
 	}
 
 	entry, found := d.nodes[node.Hash()]
 	if found {
-		entry.refs += count
+		entry.refs += 1
 		return entry.node
 	}
 
-	node.Children[0] = d.add(node.Children[0], 1)
-	node.Children[1] = d.add(node.Children[1], 1)
+	node.Children[0] = d.add(node.Children[0])
+	node.Children[1] = d.add(node.Children[1])
 	d.nodes[node.Hash()] = dedupInfo{
-		refs: count,
+		refs: 1,
 		node: node,
 	}
 	return node
@@ -48,14 +48,26 @@ func (d *Dedup) Add(node *Node) *Node {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	return d.add(node, 1)
+	return d.add(node)
 }
 
-func (d *Dedup) AddMany(node *Node, count int) *Node {
+func (d *Dedup) AddWithChildrenAlreadyAdded(node *Node) *Node {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	return d.add(node, count)
+	entry, found := d.nodes[node.Hash()]
+	if found {
+		d.remove(node.Children[0])
+		d.remove(node.Children[1])
+		entry.refs += 1
+		return entry.node
+	}
+
+	d.nodes[node.Hash()] = dedupInfo{
+		refs: 1,
+		node: node,
+	}
+	return node
 }
 
 func (d *Dedup) findAndAdd(hash crypto.Hash, count int) *Node {
@@ -80,8 +92,6 @@ func (d *Dedup) FindAndDoNotAdd(hash crypto.Hash) *Node {
 }
 
 func (d *Dedup) remove(node *Node) {
-	return
-
 	if node == nil {
 		return
 	}

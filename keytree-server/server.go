@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jellevandenhooff/keytree/concurrency"
 	"github.com/jellevandenhooff/keytree/crypto"
 	"github.com/jellevandenhooff/keytree/mirror"
 	"github.com/jellevandenhooff/keytree/rules"
@@ -42,7 +43,7 @@ type Server struct {
 	trieCache      *trieCache         // local recent trie tracker
 	updateRequests chan updateRequest // channel to the update thread
 
-	reconcileLocks *hashLocker
+	reconcileLocks *concurrency.HashLocker
 
 	mu        sync.Mutex
 	localTrie *lookupTrie            // latest version of data, not thread-safe

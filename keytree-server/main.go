@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/jellevandenhooff/keytree/concurrency"
 	"github.com/jellevandenhooff/keytree/dkimproof"
 	"github.com/jellevandenhooff/keytree/dns"
 	"github.com/jellevandenhooff/keytree/mirror"
@@ -68,7 +69,7 @@ func main() {
 	dedup := trie.NewDedup()
 	coordinator := mirror.NewCoordinator(dedup)
 
-	reconcileLocks := newHashLocker()
+	reconcileLocks := concurrency.NewHashLocker()
 
 	trieCache := newTrieCache(dedup, updateBatchBacklog)
 	updateCache := newUpdateCache(root.Hash())
