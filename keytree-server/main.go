@@ -126,5 +126,7 @@ func main() {
 		}),
 	}
 
+	go server.ListenAndServeTLS("cert.pem", "key.pem")
+
 	server.Serve(socket)
 }
