@@ -51,7 +51,7 @@ function Tree(el, props) {
 
   var tip = d3.tip()
     .attr('class', 'd3-tip')
-    .html(function(d) { return '<span>' + d.id + '</span>' })
+    .html(function(d) { return d.label; })
     .offset([-12, 0])
 
   svg.call(tip);
@@ -87,16 +87,16 @@ function Tree(el, props) {
 
     // Add entering nodes in the parent’s old position.
     node.enter().append("circle")
-        .attr("class", "node")
+        .attr("class", (d) => d.label === "nil" ? "nil-node" : "node")
         .attr("r", 4)
         .attr("cx", function(d) { return d.parent.px; })
         .attr("cy", function(d) { return d.parent.py; })
-        .on('mouseover', tip.show)
-        .on('mouseout', tip.hide);
+        .on("mouseover", tip.show)
+        .on("mouseout", tip.hide);
 
     // Add entering links in the parent’s old position.
-    link.enter().insert("path", ".node")
-        .attr("class", "link")
+    link.enter().insert("path", "circle")
+        .attr("class", (d) => d.target.label === "nil" ? "nil-link" : "link")
         .attr("d", function(d) {
           if (d.source.px !== undefined) {
             var o = {x: d.source.px, y: d.source.py};
@@ -108,10 +108,10 @@ function Tree(el, props) {
     var t = svg.transition()
         .duration(duration);
 
-    t.selectAll(".link")
+    t.selectAll("path")
         .attr("d", diagonal);
 
-    t.selectAll(".node")
+    t.selectAll("circle")
         .attr("cx", function(d) { return d.px = d.x; })
         .attr("cy", function(d) { return d.py = d.y; });
   }
@@ -261,7 +261,13 @@ var Update = React.createClass({
   }
 });
 
+function shorten(s) {
+  return s.substring(0, 20) + "...";
+}
+
 var nilHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+var counter = 0;
 
 var downloadNode = async function(hash) {
   if (hash === nilHash) {
@@ -279,16 +285,18 @@ var downloadNode = async function(hash) {
     var name = entryData.Entry.Name;
 
     return {
-      id: name,
+      id: hash,
+      label: "<span>" + shorten(hash) + "</span><br><span>" + name + "</span>",
       nameHash: data.Leaf.NameHash,
       entryHash: data.Leaf.EntryHash
     };
   } else {
     var promises = [downloadNode(data.ChildHashes[0]), downloadNode(data.ChildHashes[1])];
-    var children = _.filter([await promises[0], await promises[1]], _.identity);
+    var children = _.map([await promises[0], await promises[1]], (node) => node ? node : {id: '' + counter++, label: 'nil'});
 
     return {
       id: hash,
+      label: "<span>" + shorten(hash) + "</span>",
       children: children
     };
   }
