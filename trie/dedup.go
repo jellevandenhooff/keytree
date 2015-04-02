@@ -107,6 +107,8 @@ func (d *Dedup) remove(node *Node) {
 }
 
 func (d *Dedup) Remove(node *Node) {
+	return
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

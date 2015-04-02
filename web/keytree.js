@@ -1,12 +1,123 @@
 var React = require('react/addons');
 
 var $ = require('jquery');
+var d3 = require('d3');
+d3.tip = require('d3-tip');
 var _ = require('lodash');
 var crypto = require('./crypto');
 
 var downloadJson = function(url) {
   return Promise.resolve($.ajax(url, {dataType: 'json'}));
 }
+
+function D3Wrapper(d3Class) {
+  return React.createClass({
+    componentDidMount: function() {
+      var el = this.getDOMNode();
+      this.d3 = new d3Class(el, this.props);
+    },
+
+    componentDidUpdate: function() {
+      this.d3.update(this.props);
+    },
+
+    componentWillUnmount: function() {
+      var el = this.getDOMNode();
+      this.d3.destroy(el);
+    },
+
+    render: function() {
+      return (
+        <div></div>
+      );
+    }
+  });
+}
+
+function Tree(el, props) {
+  var width = 640,
+      height = 500;
+
+  var tree = d3.layout.tree()
+      .size([width - 20, height - 20]);
+
+  var diagonal = d3.svg.diagonal();
+
+  var svg = d3.select(el).append("svg")
+      .attr("width", width)
+      .attr("height", height)
+    .append("g")
+      .attr("transform", "translate(10,10)");
+
+  var tip = d3.tip()
+    .attr('class', 'd3-tip')
+    .html(function(d) { return '<span>' + d.id + '</span>' })
+    .offset([-12, 0])
+
+  svg.call(tip);
+
+  var node = svg.selectAll(".node"),
+      link = svg.selectAll(".link");
+
+  var duration = 750;
+
+  downloadTree().then((root) => this.update(root));
+
+  this.update = function(root) {
+    root.parent = root;
+
+    var nodes = [];
+
+    var collect = function(node, parent) {
+      if (!node) {
+        return;
+      }
+      nodes.push(node);
+      if (node.children) {
+        collect(node.children[0], node);
+        collect(node.children[1], node);
+      }
+    };
+
+    collect(root);
+
+    // Recompute the layout and data join.
+    node = node.data(tree.nodes(root), function(d) { return d.id; });
+    link = link.data(tree.links(nodes), function(d) { return d.source.id + "-" + d.target.id; });
+
+    // Add entering nodes in the parent’s old position.
+    node.enter().append("circle")
+        .attr("class", "node")
+        .attr("r", 4)
+        .attr("cx", function(d) { return d.parent.px; })
+        .attr("cy", function(d) { return d.parent.py; })
+        .on('mouseover', tip.show)
+        .on('mouseout', tip.hide);
+
+    // Add entering links in the parent’s old position.
+    link.enter().insert("path", ".node")
+        .attr("class", "link")
+        .attr("d", function(d) {
+          if (d.source.px !== undefined) {
+            var o = {x: d.source.px, y: d.source.py};
+            return diagonal({source: o, target: o});
+          }
+        });
+
+    // Transition nodes and links to their new positions.
+    var t = svg.transition()
+        .duration(duration);
+
+    t.selectAll(".link")
+        .attr("d", diagonal);
+
+    t.selectAll(".node")
+        .attr("cx", function(d) { return d.px = d.x; })
+        .attr("cy", function(d) { return d.py = d.y; });
+  }
+}
+
+var D3Tree = D3Wrapper(Tree);
 
 function timeConverter(unix){
   return (new Date(unix*1000)).toLocaleString();
@@ -150,6 +261,44 @@ var Update = React.createClass({
   }
 });
 
+var nilHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+var downloadNode = async function(hash) {
+  if (hash === nilHash) {
+    return undefined;
+  }
+
+  var data = await downloadJson("/keytree/trienode?hash=" + hash);
+
+  if (data === null) {
+    return data;
+  }
+
+  if (data.Leaf) {
+    var entryData = await downloadJson("/keytree/lookup?hash=" + data.Leaf.NameHash);
+    var name = entryData.Entry.Name;
+
+    return {
+      id: name,
+      nameHash: data.Leaf.NameHash,
+      entryHash: data.Leaf.EntryHash
+    };
+  } else {
+    var promises = [downloadNode(data.ChildHashes[0]), downloadNode(data.ChildHashes[1])];
+    var children = _.filter([await promises[0], await promises[1]], _.identity);
+
+    return {
+      id: hash,
+      children: children
+    };
+  }
+}
+
+var downloadTree = async function() {
+  var data = await downloadJson("/keytree/root");
+  return await downloadNode(data.Root.RootHash);
+}
+
 var Browser = React.createClass({
   fetch: async function(after) {
     this.setState({loading: true});
@@ -211,7 +360,7 @@ var Browser = React.createClass({
 });
 
 var Tree = React.createClass({
-  fetch: async function(after) {
+  /* fetch: async function(after) {
     this.setState({loading: true});
     try {
       var data = await downloadJson("/keytree/root");
@@ -219,22 +368,26 @@ var Tree = React.createClass({
     } catch (e) {
       this.setState({loading: false});
     }
-  },
+  }, */
   componentDidMount: function() {
-    this.fetch();
+    /* this.fetch(); */
   },
   getInitialState: function() {
-    return {root: undefined, loading: true};
+    // return {root: undefined, loading: true};
+    return {};
   },
   render: function() {
     return (
       <div>
         <h1>Tree</h1>
-        {this.state.loading ?
-          <span>Loading...</span> : 
-          <pre>{JSON.stringify(this.state.root, null, "  ")}</pre>}
+        <D3Tree />
       </div>
     );
+    /*
+    {this.state.loading ?
+      <span>Loading...</span> : 
+      <pre>{JSON.stringify(this.state.root, null, "  ")}</pre>}
+    */
   }
 });
 
