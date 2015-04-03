@@ -80,7 +80,7 @@ var downloadNode = async function(hash, path, depth) {
       path: path
     };
   } else {
-    var flippable = depth > 0 && depth % 4 == 0;
+    var flippable = depth % 4 == 0 && depth > 0;
 
     var children;
 
@@ -109,7 +109,7 @@ var downloadTree = async function() {
 
 function Tree(el, props) {
   var width = 640,
-      height = 40;
+      height = 20;
 
   var diagonal = d3.svg.diagonal();
 
@@ -177,9 +177,6 @@ function Tree(el, props) {
     node.exit().remove();
 
     var icon = (d) => {
-      /* if (d.label === "nil") {
-        return "\uf10c";
-      } else */
       if (d.flippable && !d.open) {
         return "\uf055";
       } else if (d.flippable && d.open) {
@@ -210,7 +207,7 @@ function Tree(el, props) {
 
     gs
         .append("circle")
-        .attr("r", 8)
+        .attr("r", 9)
         .attr("cx", 0)
         .attr("cy", 0)
         .attr("fill", "#fff")
