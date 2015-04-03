@@ -52,6 +52,10 @@ func (d *Dedup) Add(node *Node) *Node {
 }
 
 func (d *Dedup) AddWithChildrenAlreadyAdded(node *Node) *Node {
+	if node == nil {
+		return node
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

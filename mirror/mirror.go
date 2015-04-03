@@ -10,7 +10,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-const fetchParallelism = 8
+const fetchParallelism = 100
 
 type TrieFollower interface {
 	FullSync(*wire.SignedRoot, *trie.Node)

@@ -29,7 +29,7 @@ const updateFlushInterval = 50 * time.Millisecond
 const noFlushUpdateInterval = 10 * time.Second
 const updateBatchBacklog = 200
 
-const fixerParallelism = 8
+const fixerParallelism = 100
 
 const updateQueueSize = 1000
 const reconcileQueueSize = 2000
