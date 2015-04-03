@@ -88,9 +88,7 @@
 	  var _this = this;
 
 	  var width = 640,
-	      height = 300;
-
-	  var tree = d3.layout.tree().size([width - 20, height - 20]);
+	      height = 40;
 
 	  var diagonal = d3.svg.diagonal();
 
@@ -122,6 +120,8 @@
 
 	    var nodes = [];
 
+	    var maxDepth = 0;
+
 	    var collect = (function (_collect) {
 	      var _collectWrapper = function collect(_x, _x2) {
 	        return _collect.apply(this, arguments);
@@ -136,13 +136,12 @@
 	      if (!node) {
 	        return;
 	      }
+	      if (depth > maxDepth) {
+	        maxDepth = depth;
+	      }
 	      nodes.push(node);
 	      if (node.baseChildren) {
-	        if (node.open /*|| node.id.slice(0, 5) === "w3kct"*/) {
-	          node.children = node.baseChildren;
-	          collect(node.children[0], 1);
-	          collect(node.children[1], 1);
-	        } else if (depth >= 5) {
+	        if (depth % 5 == 0 && !node.open && depth > 0) {
 	          node.children = [];
 	          node.flippable = true;
 	        } else {
@@ -154,6 +153,10 @@
 	    });
 
 	    collect(root, 0);
+
+	    var treeHeight = maxDepth * 40;
+
+	    var tree = d3.layout.tree().size([width - 20, treeHeight]);
 
 	    // Recompute the layout and data join.
 	    node = node.data(tree.nodes(root), function (d) {
@@ -191,14 +194,15 @@
 	    }).text(icon)
 	    /* .attr("r", 4) */
 	    .attr("text-anchor", "middle").on("mouseover", tip.show).on("mouseout", tip.hide).on("click", function (d) {
-	      if (d.baseChildren && !d.open) {
+	      if (d.flippable && !d.open) {
 	        d.open = true;
 	        if (openNow) {
 	          openNow.open = false;
 	        }
 	        openNow = d;
-	      } else if (d.baseChildren && d.open) {
+	      } else if (d.flippable && d.open) {
 	        d.open = false;
+	        openNow = undefined;
 	      }
 	      origin = { x: d.x, y: d.y };
 	      _this2.update(root);
@@ -217,6 +221,8 @@
 
 	    // Transition nodes and links to their new positions.
 	    var t = svg.transition().duration(duration);
+
+	    d3.select(el).transition().duration(duration).select("svg").attr("height", treeHeight + 20);
 
 	    t.selectAll("path").attr("d", diagonal);
 
@@ -337,7 +343,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t435 = context$1$0["catch"](1);
+	          context$1$0.t535 = context$1$0["catch"](1);
 
 	          _this.setState({ result: undefined, loading: false });
 
@@ -411,7 +417,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t436 = context$1$0["catch"](1);
+	          context$1$0.t536 = context$1$0["catch"](1);
 
 	          _this.setState({ oldKeys: undefined, loading: false, loaded: true });
 
@@ -568,13 +574,13 @@
 	        return promises[0];
 
 	      case 18:
-	        context$1$0.t437 = context$1$0.sent;
+	        context$1$0.t537 = context$1$0.sent;
 	        context$1$0.next = 21;
 	        return promises[1];
 
 	      case 21:
-	        context$1$0.t438 = context$1$0.sent;
-	        children = _.map([context$1$0.t437, context$1$0.t438], function (node) {
+	        context$1$0.t538 = context$1$0.sent;
+	        children = _.map([context$1$0.t537, context$1$0.t538], function (node) {
 	          return node ? node : { id: "" + counter++, label: "nil" };
 	        });
 	        return context$1$0.abrupt("return", {
@@ -664,7 +670,7 @@
 
 	        case 17:
 	          context$1$0.prev = 17;
-	          context$1$0.t439 = context$1$0["catch"](1);
+	          context$1$0.t539 = context$1$0["catch"](1);
 
 	          _this.setState({ loading: false });
 

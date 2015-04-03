@@ -36,10 +36,7 @@ function D3Wrapper(d3Class) {
 
 function Tree(el, props) {
   var width = 640,
-      height = 300;
-
-  var tree = d3.layout.tree()
-      .size([width - 20, height - 20]);
+      height = 40;
 
   var diagonal = d3.svg.diagonal();
 
@@ -72,17 +69,18 @@ function Tree(el, props) {
 
     var nodes = [];
 
+    var maxDepth = 0;
+
     var collect = function(node, depth) {
       if (!node) {
         return;
       }
+      if (depth > maxDepth) {
+        maxDepth = depth;
+      }
       nodes.push(node);
       if (node.baseChildren) {
-        if (node.open /*|| node.id.slice(0, 5) === "w3kct"*/) {
-          node.children = node.baseChildren;
-          collect(node.children[0], 1);
-          collect(node.children[1], 1);
-        } else if (depth >= 5) {
+        if (depth % 5 == 0 && !node.open && depth > 0) {
           node.children = [];
           node.flippable = true;
         } else {
@@ -94,6 +92,12 @@ function Tree(el, props) {
     };
 
     collect(root, 0);
+
+    var treeHeight = maxDepth * 40;
+
+    var tree = d3.layout.tree()
+        .size([width - 20, treeHeight]);
+
 
     // Recompute the layout and data join.
     node = node.data(tree.nodes(root), (d) => d.id);
@@ -140,14 +144,15 @@ function Tree(el, props) {
         .on("mouseover", tip.show)
         .on("mouseout", tip.hide)
         .on("click", (d) => {
-          if (d.baseChildren && !d.open) {
+          if (d.flippable && !d.open) {
             d.open = true;
             if (openNow) {
               openNow.open = false;
             }
             openNow = d;
-          } else if (d.baseChildren && d.open) {
+          } else if (d.flippable && d.open) {
             d.open = false;
+            openNow = undefined;
           }
           origin = {x: d.x, y: d.y};
           this.update(root);
@@ -168,6 +173,8 @@ function Tree(el, props) {
     // Transition nodes and links to their new positions.
     var t = svg.transition()
         .duration(duration);
+
+    d3.select(el).transition().duration(duration).select("svg").attr("height", treeHeight+20);
 
     t.selectAll("path")
         .attr("d", diagonal);
