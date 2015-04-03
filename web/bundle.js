@@ -101,7 +101,7 @@
 	  svg.call(tip);
 
 	  var node = svg.selectAll(".node"),
-	      link = svg.selectAll(".link");
+	      link = svg.selectAll("path");
 
 	  var duration = 750;
 
@@ -111,10 +111,17 @@
 
 	  var origin;
 
-	  var openNow;
+	  var openNow = undefined;
+	  var selected = openNow;
 
 	  this.update = function (root) {
 	    var _this2 = this;
+
+	    window.select = function (email) {
+	      openNow = crypto.toBitString(crypto.hashString(email));
+	      selected = openNow;
+	      _this2.update(root);
+	    };
 
 	    root.parent = root;
 
@@ -123,7 +130,7 @@
 	    var maxDepth = 0;
 
 	    var collect = (function (_collect) {
-	      var _collectWrapper = function collect(_x, _x2) {
+	      var _collectWrapper = function collect(_x, _x2, _x3) {
 	        return _collect.apply(this, arguments);
 	      };
 
@@ -132,27 +139,34 @@
 	      };
 
 	      return _collectWrapper;
-	    })(function (node, depth) {
+	    })(function (node, depth, path) {
 	      if (!node) {
 	        return;
 	      }
 	      if (depth > maxDepth) {
 	        maxDepth = depth;
 	      }
+	      node.depth = depth;
+	      if (node.nameHash) {
+	        path = crypto.toBitString(crypto.fromBase32(node.nameHash));
+	      }
+	      node.path = path;
 	      nodes.push(node);
+	      node.open = openNow && openNow.substr(0, path.length) === path;
+	      node.selected = selected && selected.substr(0, path.length) === path;
 	      if (node.baseChildren) {
-	        if (depth % 5 == 0 && !node.open && depth > 0) {
+	        if (depth % 4 == 0 && !node.open && depth > 0) {
 	          node.children = [];
 	          node.flippable = true;
 	        } else {
 	          node.children = node.baseChildren;
-	          collect(node.children[0], depth + 1);
-	          collect(node.children[1], depth + 1);
+	          collect(node.children[0], depth + 1, path + "0");
+	          collect(node.children[1], depth + 1, path + "1");
 	        }
 	      }
 	    });
 
-	    collect(root, 0);
+	    collect(root, 0, "");
 
 	    var treeHeight = maxDepth * 40;
 
@@ -169,52 +183,57 @@
 	    var icon = function (d) {
 	      /* if (d.label === "nil") {
 	        return "\uf10c";
-	      } else */if (d.baseChildren && !d.open && d.flippable) {
+	      } else */
+	      if (d.flippable && !d.open) {
 	        return "";
-	      } else if (d.baseChildren && d.open) {
+	      } else if (d.flippable && d.open) {
 	        return "";
 	      } else {
 	        return "";
 	      }
 	    };
 
+	    var origin = undefined;
+
 	    // Add entering nodes in the parent’s old position.
-	    var gs = node.enter().append("g").attr("class", "node").attr("transform", function (d) {
-	      return origin ? "translate(" + origin.x + "," + origin.y + ")" : "translate(" + d.x + "," + d.y + ")";
+	    var gs = node.enter().append("g").each(function (d) {
+	      if (!origin || d.depth - 1 < origin.depth) {
+	        origin = d.parent.px ? { x: d.parent.px, y: d.parent.py } : d.parent;
+	      }
+	    }).attr("class", "node").attr("transform", function (d) {
+	      return "translate(" + origin.x + "," + origin.y + ")";
 	    });
 
 	    node.exit().remove();
 
+	    node.each(function (d) {
+	      d.px = d.x;d.py = d.y;
+	    });
+
 	    gs.append("circle").attr("r", 8).attr("cx", 0).attr("cy", 0).attr("fill", "#fff");
 
-	    node.select("text").text(icon);
-
-	    gs.append("text").attr("class", function (d) {
-	      return d.label === "nil" ? "nil" : "";
-	    }).text(icon)
-	    /* .attr("r", 4) */
-	    .attr("text-anchor", "middle").on("mouseover", tip.show).on("mouseout", tip.hide).on("click", function (d) {
+	    gs.append("text").attr("text-anchor", "middle").on("mouseover", tip.show).on("mouseout", tip.hide).on("click", function (d) {
 	      if (d.flippable && !d.open) {
-	        d.open = true;
-	        if (openNow) {
-	          openNow.open = false;
-	        }
-	        openNow = d;
+	        openNow = d.path;
+	        selected = undefined;
 	      } else if (d.flippable && d.open) {
-	        d.open = false;
-	        openNow = undefined;
+	        openNow = d.path.substr(0, d.path.length - 1);
+	        selected = undefined;
 	      }
-	      origin = { x: d.x, y: d.y };
 	      _this2.update(root);
 	    });
 
+	    node.select("text").text(icon).attr("class", function (d) {
+	      return d.label === "nil" ? "nil" : d.selected ? "selected" : "";
+	    });
+
 	    // Add entering links in the parent’s old position.
-	    link.enter().insert("path", "g").attr("class", function (d) {
-	      return d.target.label === "nil" ? "nil link" : "link";
-	    }).attr("d", function (d) {
-	      if (origin) {
-	        return diagonal({ source: origin, target: origin });
-	      }
+	    link.enter().insert("path", "g").attr("d", function (d) {
+	      return diagonal({ source: origin, target: origin });
+	    });
+
+	    link.attr("class", function (d) {
+	      return d.target.label === "nil" ? "nil link" : d.target.selected ? "selected link" : "link";
 	    });
 
 	    link.exit().remove();
@@ -229,8 +248,6 @@
 	    t.selectAll(".node").attr("transform", function (d) {
 	      return "translate(" + d.x + "," + d.y + ")";
 	    });
-	    /*.attr("x", (d) => d.px = d.x)
-	    .attr("y", (d) => d.py = d.y);*/
 	  };
 	}
 
@@ -343,7 +360,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t535 = context$1$0["catch"](1);
+	          context$1$0.t1040 = context$1$0["catch"](1);
 
 	          _this.setState({ result: undefined, loading: false });
 
@@ -362,6 +379,7 @@
 	  handleLookup: function handleLookup(e) {
 	    e.preventDefault();
 	    this.fetch(this.state.name);
+	    window.select(this.state.name);
 	  },
 	  render: function render() {
 	    return React.createElement(
@@ -417,7 +435,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t536 = context$1$0["catch"](1);
+	          context$1$0.t1041 = context$1$0["catch"](1);
 
 	          _this.setState({ oldKeys: undefined, loading: false, loaded: true });
 
@@ -563,6 +581,7 @@
 	        name = entryData.Entry.Name;
 	        return context$1$0.abrupt("return", {
 	          id: hash,
+	          name: name,
 	          label: "<span>" + shorten(hash) + "</span><br><span>" + name + "</span>",
 	          nameHash: data.Leaf.NameHash,
 	          entryHash: data.Leaf.EntryHash
@@ -574,13 +593,13 @@
 	        return promises[0];
 
 	      case 18:
-	        context$1$0.t537 = context$1$0.sent;
+	        context$1$0.t1042 = context$1$0.sent;
 	        context$1$0.next = 21;
 	        return promises[1];
 
 	      case 21:
-	        context$1$0.t538 = context$1$0.sent;
-	        children = _.map([context$1$0.t537, context$1$0.t538], function (node) {
+	        context$1$0.t1043 = context$1$0.sent;
+	        children = _.map([context$1$0.t1042, context$1$0.t1043], function (node) {
 	          return node ? node : { id: "" + counter++, label: "nil" };
 	        });
 	        return context$1$0.abrupt("return", {
@@ -670,7 +689,7 @@
 
 	        case 17:
 	          context$1$0.prev = 17;
-	          context$1$0.t539 = context$1$0["catch"](1);
+	          context$1$0.t1044 = context$1$0["catch"](1);
 
 	          _this.setState({ loading: false });
 
@@ -698,6 +717,7 @@
 	    e.preventDefault();
 	    window.lookup.setState({ name: name });
 	    window.lookup.fetch(name);
+	    window.select(name);
 	  },
 	  render: function render() {
 	    var _this = this;
@@ -784,9 +804,9 @@
 	    return React.createElement(
 	      "div",
 	      null,
-	      React.createElement(Lookup, null),
 	      React.createElement(Browser, null),
-	      React.createElement(Tree, null)
+	      React.createElement(Tree, null),
+	      React.createElement(Lookup, null)
 	    );
 	  }
 	});
@@ -815,6 +835,10 @@
 	  pad: "",
 	  arrayData: true });
 
+	var fromBase32 = function fromBase32(s) {
+	  return new Uint8Array(base32.decode(s));
+	};
+
 	var wrap = function wrap(data, pre) {
 	  return pre + "(" + base32.encode(data) + ")";
 	};
@@ -823,7 +847,7 @@
 	  if (data.slice(0, pre.length) !== pre || data.slice(pre.length, pre.length + 1) !== "(" || data.slice(data.length - 1) !== ")") {
 	    throw "Incorrectly formatted string";
 	  }
-	  return new Uint8Array(base32.decode(data.slice(pre.length + 1, data.length - 1)));
+	  return fromBase32(data.slice(pre.length + 1, data.length - 1));
 	};
 
 	var concatArrays = function concatArrays(a, b) {
@@ -969,6 +993,22 @@
 	  return nacl.hash(buffer);
 	};
 
+	var hashString = function hashString(s) {
+	  var h = new Hasher();
+	  h.write(nacl.util.decodeUTF8(s));
+	  return h.sum();
+	};
+
+	var toBitString = function toBitString(buffer) {
+	  var s = "";
+	  for (var i = 0; i < buffer.length; i++) {
+	    for (var j = 0; j < 8; j++) {
+	      s += buffer[i] >> j & 1;
+	    }
+	  }
+	  return s;
+	};
+
 	module.exports = {
 	  generateRandomSigningKeypair: generateRandomSigningKeypair,
 	  generateRandomBoxKeypair: generateRandomBoxKeypair,
@@ -976,7 +1016,11 @@
 	  verify: verify,
 	  encrypt: encrypt,
 	  decrypt: decrypt,
-	  Hasher: Hasher };
+	  Hasher: Hasher,
+	  hashString: hashString,
+	  toBitString: toBitString,
+	  fromBase32: fromBase32
+	};
 
 /***/ },
 /* 2 */

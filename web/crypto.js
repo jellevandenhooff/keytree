@@ -9,6 +9,10 @@ var base32 = new Nibbler({
   arrayData: true,
 });
 
+var fromBase32 = function(s) {
+  return new Uint8Array(base32.decode(s));
+}
+
 var wrap = function(data, pre) {
   return pre + "(" + base32.encode(data) + ")";
 }
@@ -17,7 +21,7 @@ var unwrap = function(data, pre) {
   if (data.slice(0, pre.length) !== pre || data.slice(pre.length, pre.length + 1) !== "(" || data.slice(data.length - 1) !== ")") {
     throw "Incorrectly formatted string";
   }
-  return new Uint8Array(base32.decode(data.slice(pre.length + 1, data.length - 1)));
+  return fromBase32(data.slice(pre.length + 1, data.length - 1));
 }
 
 var concatArrays = function(a, b) {
@@ -111,6 +115,22 @@ Hasher.prototype.sum = function() {
   return nacl.hash(buffer);
 };
 
+var hashString = function(s) {
+  var h = new Hasher();
+  h.write(nacl.util.decodeUTF8(s));
+  return h.sum();
+}
+
+var toBitString = function(buffer) {
+  var s = "";
+  for (var i = 0; i < buffer.length; i++) {
+    for (var j = 0; j < 8; j++) {
+      s += (buffer[i] >> j) & 1;
+    }
+  }
+  return s;
+}
+
 module.exports = {
   generateRandomSigningKeypair: generateRandomSigningKeypair,
   generateRandomBoxKeypair: generateRandomBoxKeypair,
@@ -119,4 +139,7 @@ module.exports = {
   encrypt: encrypt,
   decrypt: decrypt,
   Hasher: Hasher,
+  hashString: hashString,
+  toBitString: toBitString,
+  fromBase32: fromBase32
 };

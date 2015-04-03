@@ -22,6 +22,12 @@ svg text {
   fill: #aaa;
 }
 
+.node text.selected {
+  fill: green;
+}
+
+
+
 .link {
   fill: none;
   stroke: #000;
@@ -29,6 +35,10 @@ svg text {
 
 .link.nil {
   stroke: #aaa;
+}
+
+.link.selected {
+  stroke: green;
 }
 
 .d3-tip {

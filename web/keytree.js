@@ -54,7 +54,7 @@ function Tree(el, props) {
   svg.call(tip);
 
   var node = svg.selectAll(".node"),
-      link = svg.selectAll(".link");
+      link = svg.selectAll("path");
 
   var duration = 750;
 
@@ -62,36 +62,51 @@ function Tree(el, props) {
 
   var origin;
 
-  var openNow;
+
+  var openNow = undefined;
+  var selected = openNow;
 
   this.update = function(root) {
+    window.select = (email) => {
+      openNow = crypto.toBitString(crypto.hashString(email));
+      selected = openNow;
+      this.update(root);
+    }
+
     root.parent = root;
 
     var nodes = [];
 
     var maxDepth = 0;
 
-    var collect = function(node, depth) {
+    var collect = function(node, depth, path) {
       if (!node) {
         return;
       }
       if (depth > maxDepth) {
         maxDepth = depth;
       }
+      node.depth = depth;
+      if (node.nameHash) {
+        path = crypto.toBitString(crypto.fromBase32(node.nameHash));
+      }
+      node.path = path;
       nodes.push(node);
+      node.open = openNow && openNow.substr(0, path.length) === path;
+      node.selected = selected && selected.substr(0, path.length) === path;
       if (node.baseChildren) {
-        if (depth % 5 == 0 && !node.open && depth > 0) {
+        if (depth % 4 == 0 && !node.open && depth > 0) {
           node.children = [];
           node.flippable = true;
         } else {
           node.children = node.baseChildren;
-          collect(node.children[0], depth+1);
-          collect(node.children[1], depth+1);
+          collect(node.children[0], depth+1, path + "0");
+          collect(node.children[1], depth+1, path + "1");
         }
       }
     };
 
-    collect(root, 0);
+    collect(root, 0, "");
 
     var treeHeight = maxDepth * 40;
 
@@ -106,24 +121,32 @@ function Tree(el, props) {
     var icon = (d) => {
       /* if (d.label === "nil") {
         return "\uf10c";
-      } else */ if (d.baseChildren && !d.open && d.flippable) {
+      } else */
+      if (d.flippable && !d.open) {
         return "\uf055";
-      } else if (d.baseChildren && d.open) {
+      } else if (d.flippable && d.open) {
         return "\uf056";
       } else {
         return "\uf111";
       }
     };
 
+    var origin = undefined;
+
     // Add entering nodes in the parent’s old position.
     var gs = node.enter()
         .append("g")
+        .each((d) => {
+          if (!origin || d.depth - 1 < origin.depth) {
+            origin = d.parent.px ? {x: d.parent.px, y: d.parent.py} : d.parent;
+          }
+        })
         .attr("class", "node")
-        .attr("transform", (d) => origin ? ("translate(" + origin.x + "," + origin.y + ")") : 
-            
-            ("translate(" + d.x + "," + d.y + ")"));
+        .attr("transform", (d) => "translate(" + origin.x + "," + origin.y + ")");
 
     node.exit().remove();
+
+    node.each((d) => { d.px = d.x; d.py = d.y; });
 
     gs
         .append("circle")
@@ -132,41 +155,30 @@ function Tree(el, props) {
         .attr("cy", 0)
         .attr("fill", "#fff")
 
-    
-    node.select("text").text(icon);
-        
     gs
         .append("text")
-        .attr("class", (d) => d.label === "nil" ? "nil" : "")
-        .text(icon)
-        /* .attr("r", 4) */
         .attr("text-anchor", "middle")
         .on("mouseover", tip.show)
         .on("mouseout", tip.hide)
         .on("click", (d) => {
           if (d.flippable && !d.open) {
-            d.open = true;
-            if (openNow) {
-              openNow.open = false;
-            }
-            openNow = d;
+            openNow = d.path;
+            selected = undefined;
           } else if (d.flippable && d.open) {
-            d.open = false;
-            openNow = undefined;
+            openNow = d.path.substr(0, d.path.length - 1);
+            selected = undefined;
           }
-          origin = {x: d.x, y: d.y};
           this.update(root);
         });
 
+    node.select("text").text(icon).attr("class", (d) => d.label === "nil" ? "nil" : (d.selected ? "selected" : ""));
 
     // Add entering links in the parent’s old position.
     link.enter().insert("path", "g")
-        .attr("class", (d) => d.target.label === "nil" ? "nil link" : "link")
-        .attr("d", function(d) {
-          if (origin) {
-            return diagonal({source: origin, target: origin});
-          }
-        });
+        .attr("d", (d) => diagonal({source: origin, target: origin}));
+
+    link
+        .attr("class", (d) => d.target.label === "nil" ? "nil link" : (d.target.selected ? "selected link" : "link"));
 
     link.exit().remove();
 
@@ -181,8 +193,6 @@ function Tree(el, props) {
 
     t.selectAll(".node")
         .attr("transform", (d) => "translate(" + d.x + "," + d.y + ")");
-        /*.attr("x", (d) => d.px = d.x)
-        .attr("y", (d) => d.py = d.y);*/
   }
 }
 
@@ -245,6 +255,7 @@ var Lookup = React.createClass({
   handleLookup: function(e) {
     e.preventDefault();
     this.fetch(this.state.name);
+    window.select(this.state.name);
   },
   render: function() {
     return (
@@ -355,6 +366,7 @@ var downloadNode = async function(hash) {
 
     return {
       id: hash,
+      name: name,
       label: "<span>" + shorten(hash) + "</span><br><span>" + name + "</span>",
       nameHash: data.Leaf.NameHash,
       entryHash: data.Leaf.EntryHash
@@ -415,6 +427,7 @@ var Browser = React.createClass({
     e.preventDefault();
     window.lookup.setState({name: name});
     window.lookup.fetch(name);
+    window.select(name);
   },
   render: function() {
     var list = (
@@ -473,9 +486,9 @@ var App = React.createClass({
     // Client side-verification
     return (
       <div>
-        <Lookup />
         <Browser />
         <Tree />
+        <Lookup />
       </div>
     );
   }
