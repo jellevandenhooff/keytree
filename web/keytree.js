@@ -34,6 +34,77 @@ function D3Wrapper(d3Class) {
   });
 }
 
+var nilHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+
+var openNow;
+var selected;
+
+var downloadNode = async function(hash, path, depth) {
+  if (hash === nilHash) {
+    return {
+      id: path,
+      label: 'nil',
+      path: path,
+      open: false,
+      selected: false,
+      depth: depth,
+      flippable: false
+    };
+  }
+
+  var data = await downloadJson("/keytree/trienode?hash=" + hash);
+
+  if (data.Leaf) {
+    path = crypto.toBitString(crypto.fromBase32(data.Leaf.NameHash));
+  }
+
+  var o = openNow && openNow.substr(0, path.length) === path;
+  var s = selected && selected.substr(0, path.length) === path;
+
+  if (data.Leaf) {
+    var entryData = await downloadJson("/keytree/lookup?hash=" + data.Leaf.NameHash);
+    var name = entryData.Entry.Name;
+
+    return {
+      id: path,
+      name: name,
+      label: "<span>" + shorten(hash) + "</span><br><span>" + name + "</span>",
+      nameHash: data.Leaf.NameHash,
+      entryHash: data.Leaf.EntryHash,
+      open: o,
+      selected: s,
+      depth: depth,
+      flippable: false,
+      path: path
+    };
+  } else {
+    var flippable = depth > 0 && depth % 4 == 0;
+
+    var children;
+
+    if (!flippable || o) {
+      var promises = [downloadNode(data.ChildHashes[0], path + "0", depth + 1), downloadNode(data.ChildHashes[1], path + "1", depth + 1)];
+      children = [await promises[0], await promises[1]];
+    }
+
+    return {
+      id: path,
+      label: "<span>" + shorten(hash) + "</span>",
+      children: children,
+      open: o,
+      selected: s,
+      depth: depth,
+      flippable: flippable,
+      path: path
+    };
+  }
+}
+
+var downloadTree = async function() {
+  var data = await downloadJson("/keytree/root");
+  return await downloadNode(data.Root.RootHash, "", 0);
+}
+
 function Tree(el, props) {
   var width = 640,
       height = 40;
@@ -53,70 +124,55 @@ function Tree(el, props) {
 
   svg.call(tip);
 
-  var node = svg.selectAll(".node"),
-      link = svg.selectAll("path");
-
   var duration = 750;
 
   downloadTree().then((root) => this.update(root));
 
   var origin;
 
-
-  var openNow = undefined;
-  var selected = openNow;
+  var previous = {};
 
   this.update = function(root) {
     window.select = (email) => {
       openNow = crypto.toBitString(crypto.hashString(email));
       selected = openNow;
-      this.update(root);
+      downloadTree().then((root) => this.update(root));
+      /* this.update(root); */
     }
-
-    root.parent = root;
 
     var nodes = [];
 
-    var maxDepth = 0;
-
-    var collect = function(node, depth, path) {
+    var collect = function(node) {
       if (!node) {
         return;
       }
-      if (depth > maxDepth) {
-        maxDepth = depth;
-      }
-      node.depth = depth;
-      if (node.nameHash) {
-        path = crypto.toBitString(crypto.fromBase32(node.nameHash));
-      }
-      node.path = path;
       nodes.push(node);
-      node.open = openNow && openNow.substr(0, path.length) === path;
-      node.selected = selected && selected.substr(0, path.length) === path;
-      if (node.baseChildren) {
-        if (depth % 4 == 0 && !node.open && depth > 0) {
-          node.children = [];
-          node.flippable = true;
-        } else {
-          node.children = node.baseChildren;
-          collect(node.children[0], depth+1, path + "0");
-          collect(node.children[1], depth+1, path + "1");
-        }
+      if (node.children) {
+        collect(node.children[0]);
+        collect(node.children[1]);
       }
     };
 
-    collect(root, 0, "");
+    collect(root);
+    root.parent = root;
+
+    var maxDepth = _.max(nodes, (node) => node.depth).depth;
 
     var treeHeight = maxDepth * 40;
 
     var tree = d3.layout.tree()
         .size([width - 20, treeHeight]);
 
+    var node = svg.selectAll(".node"),
+        link = svg.selectAll("path");
 
     // Recompute the layout and data join.
     node = node.data(tree.nodes(root), (d) => d.id);
     link = link.data(tree.links(nodes), (d) => d.source.id + "-" + d.target.id);
+
+
+    link.exit().remove();
+    node.exit().remove();
 
     var icon = (d) => {
       /* if (d.label === "nil") {
@@ -138,15 +194,17 @@ function Tree(el, props) {
         .append("g")
         .each((d) => {
           if (!origin || d.depth - 1 < origin.depth) {
-            origin = d.parent.px ? {x: d.parent.px, y: d.parent.py} : d.parent;
+            origin = previous[d.parent.id] ? previous[d.parent.id] : d.parent;
           }
-        })
+        });
+
+    previous = {};
+    node.each((node) => previous[node.id] = node);
+
+
+    gs
         .attr("class", "node")
         .attr("transform", (d) => "translate(" + origin.x + "," + origin.y + ")");
-
-    node.exit().remove();
-
-    node.each((d) => { d.px = d.x; d.py = d.y; });
 
     gs
         .append("circle")
@@ -168,7 +226,7 @@ function Tree(el, props) {
             openNow = d.path.substr(0, d.path.length - 1);
             selected = undefined;
           }
-          this.update(root);
+          downloadTree().then((root) => this.update(root));
         });
 
     node.select("text").text(icon).attr("class", (d) => d.label === "nil" ? "nil" : (d.selected ? "selected" : ""));
@@ -179,8 +237,6 @@ function Tree(el, props) {
 
     link
         .attr("class", (d) => d.target.label === "nil" ? "nil link" : (d.target.selected ? "selected link" : "link"));
-
-    link.exit().remove();
 
     // Transition nodes and links to their new positions.
     var t = svg.transition()
@@ -343,49 +399,6 @@ var Update = React.createClass({
 
 function shorten(s) {
   return s.substring(0, 20) + "...";
-}
-
-var nilHash = "0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-
-var counter = 0;
-
-var downloadNode = async function(hash) {
-  if (hash === nilHash) {
-    return undefined;
-  }
-
-  var data = await downloadJson("/keytree/trienode?hash=" + hash);
-
-  if (data === null) {
-    return data;
-  }
-
-  if (data.Leaf) {
-    var entryData = await downloadJson("/keytree/lookup?hash=" + data.Leaf.NameHash);
-    var name = entryData.Entry.Name;
-
-    return {
-      id: hash,
-      name: name,
-      label: "<span>" + shorten(hash) + "</span><br><span>" + name + "</span>",
-      nameHash: data.Leaf.NameHash,
-      entryHash: data.Leaf.EntryHash
-    };
-  } else {
-    var promises = [downloadNode(data.ChildHashes[0]), downloadNode(data.ChildHashes[1])];
-    var children = _.map([await promises[0], await promises[1]], (node) => node ? node : {id: '' + counter++, label: 'nil'});
-
-    return {
-      id: hash,
-      label: "<span>" + shorten(hash) + "</span>",
-      baseChildren: children
-    };
-  }
-}
-
-var downloadTree = async function() {
-  var data = await downloadJson("/keytree/root");
-  return await downloadNode(data.Root.RootHash);
 }
 
 var Browser = React.createClass({
