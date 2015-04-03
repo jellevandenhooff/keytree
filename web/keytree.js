@@ -1,3 +1,5 @@
+require("font-awesome-webpack");
+
 var React = require('react/addons');
 
 var $ = require('jquery');
