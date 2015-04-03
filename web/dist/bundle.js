@@ -132,8 +132,8 @@
 	          path = crypto.toBitString(crypto.fromBase32(data.Leaf.NameHash));
 	        }
 
-	        o = openNow && openNow.substr(0, path.length) === path;
-	        s = selected && selected.substr(0, path.length) === path;
+	        o = openNow !== undefined && openNow.substr(0, path.length) === path;
+	        s = selected !== undefined && selected.substr(0, path.length) === path;
 
 	        if (!data.Leaf) {
 	          context$1$0.next = 16;
@@ -160,7 +160,7 @@
 	        });
 
 	      case 16:
-	        flippable = depth % 4 == 0 && depth > 0;
+	        flippable = depth % 3 == 0;
 
 	        if (!(!flippable || o)) {
 	          context$1$0.next = 26;
@@ -172,13 +172,13 @@
 	        return promises[0];
 
 	      case 21:
-	        context$1$0.t35 = context$1$0.sent;
+	        context$1$0.t115 = context$1$0.sent;
 	        context$1$0.next = 24;
 	        return promises[1];
 
 	      case 24:
-	        context$1$0.t36 = context$1$0.sent;
-	        children = [context$1$0.t35, context$1$0.t36];
+	        context$1$0.t116 = context$1$0.sent;
+	        children = [context$1$0.t115, context$1$0.t116];
 
 	      case 26:
 	        return context$1$0.abrupt("return", {
@@ -313,6 +313,8 @@
 	        return "";
 	      } else if (d.flippable && d.open) {
 	        return "";
+	      } else if (!d.flippable && !d.children) {
+	        return "";
 	      } else {
 	        return "";
 	      }
@@ -343,7 +345,11 @@
 	        openNow = d.path;
 	        selected = undefined;
 	      } else if (d.flippable && d.open) {
-	        openNow = d.path.substr(0, d.path.length - 1);
+	        if (d.path === "") {
+	          openNow = undefined;
+	        } else {
+	          openNow = d.path.substr(0, d.path.length - 1);
+	        }
 	        selected = undefined;
 	      }
 	      downloadTree().then(function (root) {
@@ -486,7 +492,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t37 = context$1$0["catch"](1);
+	          context$1$0.t117 = context$1$0["catch"](1);
 
 	          _this.setState({ result: undefined, loading: false });
 
@@ -561,7 +567,7 @@
 
 	        case 8:
 	          context$1$0.prev = 8;
-	          context$1$0.t38 = context$1$0["catch"](1);
+	          context$1$0.t118 = context$1$0["catch"](1);
 
 	          _this.setState({ oldKeys: undefined, loading: false, loaded: true });
 
@@ -704,7 +710,7 @@
 
 	        case 17:
 	          context$1$0.prev = 17;
-	          context$1$0.t39 = context$1$0["catch"](1);
+	          context$1$0.t119 = context$1$0["catch"](1);
 
 	          _this.setState({ loading: false });
 

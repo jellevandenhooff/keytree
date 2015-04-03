@@ -16,6 +16,7 @@ svg text {
 
 .node text {
   cursor: default;
+  fill: #333;
 }
 
 .node text.nil {
@@ -23,12 +24,12 @@ svg text {
 }
 
 .node text.selected {
-  fill: green;
+  fill: #337ab7;
 }
 
 .link {
   fill: none;
-  stroke: #000;
+  stroke: #333;
 }
 
 .link.nil {
@@ -36,7 +37,7 @@ svg text {
 }
 
 .link.selected {
-  stroke: green;
+  stroke: #337ab7;
 }
 
 .d3-tip {

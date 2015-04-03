@@ -60,8 +60,8 @@ var downloadNode = async function(hash, path, depth) {
     path = crypto.toBitString(crypto.fromBase32(data.Leaf.NameHash));
   }
 
-  var o = openNow && openNow.substr(0, path.length) === path;
-  var s = selected && selected.substr(0, path.length) === path;
+  var o = (openNow !== undefined) && openNow.substr(0, path.length) === path;
+  var s = (selected !== undefined) && selected.substr(0, path.length) === path;
 
   if (data.Leaf) {
     var entryData = await downloadJson("/keytree/lookup?hash=" + data.Leaf.NameHash);
@@ -80,7 +80,7 @@ var downloadNode = async function(hash, path, depth) {
       path: path
     };
   } else {
-    var flippable = depth % 4 == 0 && depth > 0;
+    var flippable = depth % 3 == 0;
 
     var children;
 
@@ -172,7 +172,6 @@ function Tree(el, props) {
     node = node.data(tree.nodes(root), (d) => d.id);
     link = link.data(tree.links(nodes), (d) => d.source.id + "-" + d.target.id);
 
-
     link.exit().remove();
     node.exit().remove();
 
@@ -181,6 +180,8 @@ function Tree(el, props) {
         return "\uf055";
       } else if (d.flippable && d.open) {
         return "\uf056";
+      } else if (!d.flippable && !d.children) {
+        return "\uf10c";
       } else {
         return "\uf111";
       }
@@ -222,7 +223,11 @@ function Tree(el, props) {
             openNow = d.path;
             selected = undefined;
           } else if (d.flippable && d.open) {
-            openNow = d.path.substr(0, d.path.length - 1);
+            if (d.path === "") {
+              openNow = undefined;
+            } else {
+              openNow = d.path.substr(0, d.path.length - 1);
+            }
             selected = undefined;
           }
           downloadTree().then((root) => this.update(root));
