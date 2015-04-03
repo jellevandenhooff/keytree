@@ -4,18 +4,21 @@ body {
     width: 640px;
 }
 
+svg text {
+   font-size: 14px;
+   font-family: FontAwesome;
+   dominant-baseline: central;
+}
+
 #logo {
     padding-bottom: 20px;
 }
 
-.node {
-  stroke: #fff;
-  stroke-width: 2px;
+.node text {
+  cursor: default;
 }
 
-.nil-node {
-  stroke: #fff;
-  stroke-width: 2px;
+.node text.nil {
   fill: #aaa;
 }
 
@@ -24,8 +27,7 @@ body {
   stroke: #000;
 }
 
-.nil-link {
-  fill: none;
+.link.nil {
   stroke: #aaa;
 }
 

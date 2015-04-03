@@ -36,7 +36,7 @@ function D3Wrapper(d3Class) {
 
 function Tree(el, props) {
   var width = 640,
-      height = 500;
+      height = 300;
 
   var tree = d3.layout.tree()
       .size([width - 20, height - 20]);
@@ -63,46 +63,107 @@ function Tree(el, props) {
 
   downloadTree().then((root) => this.update(root));
 
+  var origin;
+
+  var openNow;
+
   this.update = function(root) {
     root.parent = root;
 
     var nodes = [];
 
-    var collect = function(node, parent) {
+    var collect = function(node, depth) {
       if (!node) {
         return;
       }
       nodes.push(node);
-      if (node.children) {
-        collect(node.children[0], node);
-        collect(node.children[1], node);
+      if (node.baseChildren) {
+        if (node.open /*|| node.id.slice(0, 5) === "w3kct"*/) {
+          node.children = node.baseChildren;
+          collect(node.children[0], 1);
+          collect(node.children[1], 1);
+        } else if (depth >= 5) {
+          node.children = [];
+          node.flippable = true;
+        } else {
+          node.children = node.baseChildren;
+          collect(node.children[0], depth+1);
+          collect(node.children[1], depth+1);
+        }
       }
     };
 
-    collect(root);
+    collect(root, 0);
 
     // Recompute the layout and data join.
-    node = node.data(tree.nodes(root), function(d) { return d.id; });
-    link = link.data(tree.links(nodes), function(d) { return d.source.id + "-" + d.target.id; });
+    node = node.data(tree.nodes(root), (d) => d.id);
+    link = link.data(tree.links(nodes), (d) => d.source.id + "-" + d.target.id);
+
+    var icon = (d) => {
+      /* if (d.label === "nil") {
+        return "\uf10c";
+      } else */ if (d.baseChildren && !d.open && d.flippable) {
+        return "\uf055";
+      } else if (d.baseChildren && d.open) {
+        return "\uf056";
+      } else {
+        return "\uf111";
+      }
+    };
 
     // Add entering nodes in the parent’s old position.
-    node.enter().append("circle")
-        .attr("class", (d) => d.label === "nil" ? "nil-node" : "node")
-        .attr("r", 4)
-        .attr("cx", function(d) { return d.parent.px; })
-        .attr("cy", function(d) { return d.parent.py; })
+    var gs = node.enter()
+        .append("g")
+        .attr("class", "node")
+        .attr("transform", (d) => origin ? ("translate(" + origin.x + "," + origin.y + ")") : 
+            
+            ("translate(" + d.x + "," + d.y + ")"));
+
+    node.exit().remove();
+
+    gs
+        .append("circle")
+        .attr("r", 8)
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("fill", "#fff")
+
+    
+    node.select("text").text(icon);
+        
+    gs
+        .append("text")
+        .attr("class", (d) => d.label === "nil" ? "nil" : "")
+        .text(icon)
+        /* .attr("r", 4) */
+        .attr("text-anchor", "middle")
         .on("mouseover", tip.show)
-        .on("mouseout", tip.hide);
+        .on("mouseout", tip.hide)
+        .on("click", (d) => {
+          if (d.baseChildren && !d.open) {
+            d.open = true;
+            if (openNow) {
+              openNow.open = false;
+            }
+            openNow = d;
+          } else if (d.baseChildren && d.open) {
+            d.open = false;
+          }
+          origin = {x: d.x, y: d.y};
+          this.update(root);
+        });
+
 
     // Add entering links in the parent’s old position.
-    link.enter().insert("path", "circle")
-        .attr("class", (d) => d.target.label === "nil" ? "nil-link" : "link")
+    link.enter().insert("path", "g")
+        .attr("class", (d) => d.target.label === "nil" ? "nil link" : "link")
         .attr("d", function(d) {
-          if (d.source.px !== undefined) {
-            var o = {x: d.source.px, y: d.source.py};
-            return diagonal({source: o, target: o});
+          if (origin) {
+            return diagonal({source: origin, target: origin});
           }
         });
+
+    link.exit().remove();
 
     // Transition nodes and links to their new positions.
     var t = svg.transition()
@@ -111,9 +172,10 @@ function Tree(el, props) {
     t.selectAll("path")
         .attr("d", diagonal);
 
-    t.selectAll("circle")
-        .attr("cx", function(d) { return d.px = d.x; })
-        .attr("cy", function(d) { return d.py = d.y; });
+    t.selectAll(".node")
+        .attr("transform", (d) => "translate(" + d.x + "," + d.y + ")");
+        /*.attr("x", (d) => d.px = d.x)
+        .attr("y", (d) => d.py = d.y);*/
   }
 }
 
@@ -297,7 +359,7 @@ var downloadNode = async function(hash) {
     return {
       id: hash,
       label: "<span>" + shorten(hash) + "</span>",
-      children: children
+      baseChildren: children
     };
   }
 }
