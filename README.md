@@ -6,7 +6,7 @@ by downloading the code using "go get
 github.com/jellevandenhooff/keytree/keytree-server" and running
 "keytree-server".
 
-To register an e-mail address with Keytree, download and "keytree-client".
+To register an e-mail address with Keytree, download and run "keytree-client".
 
 This repository is under development. The code has not been audited and most
 definitely contains bugs.
