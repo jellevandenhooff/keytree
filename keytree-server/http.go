@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/jellevandenhooff/keytree/crypto"
+	"github.com/jellevandenhooff/keytree/trie"
 	"github.com/jellevandenhooff/keytree/wire"
 )
 
@@ -30,6 +31,28 @@ func parseNameOrHash(r *http.Request) (crypto.Hash, error) {
 	return crypto.HashString(nameString), nil
 }
 
+func fetch(node *trie.Node, depth int) *wire.TrieNode {
+	if node == nil {
+		return nil
+	}
+
+	if node.Entry != nil {
+		return &wire.TrieNode{
+			Leaf: node.Entry,
+		}
+	}
+
+	if depth == 0 {
+		return &wire.TrieNode{
+			ChildHashes: &[2]crypto.Hash{node.Children[0].Hash(), node.Children[1].Hash()},
+		}
+	} else {
+		return &wire.TrieNode{
+			Children: &[2]*wire.TrieNode{fetch(node.Children[0], depth-1), fetch(node.Children[1], depth-1)},
+		}
+	}
+}
+
 func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -39,22 +62,26 @@ func (s *Server) handleTrieNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	node := s.dedup.FindAndDoNotAdd(hash)
+	depthString := r.URL.Query().Get("depth")
+	var depth int
+	if depthString == "" {
+		depth = 0
+	} else {
+		var err error
+		depth, err = strconv.Atoi(depthString)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 
-	if node == nil {
-		wire.ReplyJSON(w, nil)
+	if depth < 0 || depth > 4 {
+		http.Error(w, "depth out of range", http.StatusBadRequest)
 		return
 	}
 
-	if node.Entry != nil {
-		wire.ReplyJSON(w, &wire.TrieNode{
-			Leaf: node.Entry,
-		})
-	} else {
-		wire.ReplyJSON(w, &wire.TrieNode{
-			ChildHashes: &[2]crypto.Hash{node.Children[0].Hash(), node.Children[1].Hash()},
-		})
-	}
+	node := s.dedup.FindAndDoNotAdd(hash)
+	wire.ReplyJSON(w, fetch(node, depth))
 }
 
 func (s *Server) handleLookup(w http.ResponseWriter, r *http.Request) {
