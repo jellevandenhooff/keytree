@@ -96,6 +96,8 @@ func (d *Dedup) FindAndDoNotAdd(hash crypto.Hash) *Node {
 }
 
 func (d *Dedup) remove(node *Node) {
+	return
+
 	if node == nil {
 		return
 	}
