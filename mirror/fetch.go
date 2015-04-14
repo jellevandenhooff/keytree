@@ -23,12 +23,16 @@ type fetcher struct {
 func hashWireTrieNode(node *wire.TrieNode) crypto.Hash {
 	if node.Leaf != nil {
 		return crypto.CombineHashes(node.Leaf.NameHash, node.Leaf.EntryHash)
-	} else {
-		return crypto.CombineHashes(node.ChildHashes[0], node.ChildHashes[1])
 	}
+
+	if node.ChildHashes == nil {
+		node.ChildHashes = &[2]crypto.Hash{
+			hashWireTrieNode(node.Children[0]), hashWireTrieNode(node.Children[1])}
+	}
+	return crypto.CombineHashes(node.ChildHashes[0], node.ChildHashes[1])
 }
 
-func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node) (*trie.Node, error) {
+func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node, batched *wire.TrieNode) (*trie.Node, error) {
 	if hash == crypto.EmptyHash {
 		return nil, nil
 	}
@@ -46,15 +50,21 @@ func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node) (*trie.Node
 		return node, nil
 	}
 
-	node, err := f.conn.TrieNode(hash)
-	f.p.Release()
-	if err != nil {
-		return old, err
-	}
-
-	if hashWireTrieNode(node) != hash {
-		// TODO: don't recompute hash later on?
-		return old, errors.New("bad hash")
+	var node *wire.TrieNode
+	if batched != nil {
+		node = batched
+		f.p.Release()
+	} else {
+		var err error
+		node, err = f.conn.TrieNode(hash, 4)
+		f.p.Release()
+		if err != nil {
+			return old, err
+		}
+		if hashWireTrieNode(node) != hash {
+			// TODO: don't recompute hash later on?
+			return old, errors.New("bad hash")
+		}
 	}
 
 	if node.Leaf != nil {
@@ -73,13 +83,17 @@ func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node) (*trie.Node
 	wg.Add(2)
 	for i := 0; i < 2; i++ {
 		go func(i int) {
-			children[i], errs[i] = f.fetch(hashes[i], depth+1, oldChildren[i])
+			var batched *wire.TrieNode
+			if node.Children != nil {
+				batched = node.Children[i]
+			}
+			children[i], errs[i] = f.fetch(hashes[i], depth+1, oldChildren[i], batched)
 			defer wg.Done()
 		}(i)
 	}
 	wg.Wait()
 
-	err = nil
+	var err error
 	for i := 0; i < 2; i++ {
 		if errs[i] != nil {
 			err = errs[i]
@@ -112,5 +126,5 @@ func (c *Coordinator) Fetch(ctx context.Context, conn *wire.KeyTreeClient, paral
 		h:     c.h,
 	}
 
-	return fetcher.fetch(hash, 0, old)
+	return fetcher.fetch(hash, 0, old, nil)
 }
