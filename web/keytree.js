@@ -264,8 +264,9 @@ function timeConverter(unix){
 
 var knownKeys = {
   "keytree.io": "ed25519-pub(26wj522ncyprkc0t9yr1e1cz2szempbddkay02qqqxqkjnkbnygg)",
-  "Jelle's laptop": "ed25519-pub(xmmqz7cvgdd9ewa79vw9cw9qvemyd4x3zsaftacc2jqqm4nfzw20)",
-  "thesquareplanet.com": "ed25519-pub(9rr08e8hf82xfkpx944xht4asksasfgnxj8fxkmf3tczeaj1v7q0)"
+  "mzero.org": "ed25519-pub(53y84fc8acd8z1t0ckwvtc1nc2srrgrkee5mwtxvtdqytpwrc36g)",
+  "thesquareplanet.com": "ed25519-pub(9rr08e8hf82xfkpx944xht4asksasfgnxj8fxkmf3tczeaj1v7q0)",
+  "Jelle's laptop": "ed25519-pub(xmmqz7cvgdd9ewa79vw9cw9qvemyd4x3zsaftacc2jqqm4nfzw20)"
 };
 
 var humanizeKey = function(key) {
