@@ -9,6 +9,8 @@ TODO
 * make sure there is no html injection possible
 * check for memory leaks
 
+* more friendly error messages (parse body on HTTP failure in wire/client.go)
+
 MAYBE:
 * use glog
 
