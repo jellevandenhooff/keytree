@@ -184,6 +184,8 @@ func (s *Server) considerTrie(publicKey string, root *trie.Node, signedRoot *wir
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	root = s.dedup.Add(root)
+
 	if trie, found := s.allTries[publicKey]; found {
 		s.dedup.Remove(trie.root)
 	}

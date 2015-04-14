@@ -33,6 +33,16 @@ func (t *tracker) FullSync(s *wire.SignedRoot, n *trie.Node) {
 	_ = t.reconcile(localRoot, n, 0)
 }
 
+func (t *tracker) PartialSync(s *wire.SignedRoot, n *trie.Node) {
+	t.server.considerTrie(t.publicKey, n, s)
+
+	t.server.mu.Lock()
+	localRoot := t.server.localTrie.root
+	t.server.mu.Unlock()
+
+	_ = t.reconcile(localRoot, n, 0)
+}
+
 func (t *tracker) Updated(s *wire.SignedRoot, n *trie.Node, u []*wire.TrieLeaf) {
 	t.server.considerTrie(t.publicKey, n, s)
 

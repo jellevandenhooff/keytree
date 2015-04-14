@@ -16,6 +16,7 @@ import (
 	"github.com/jellevandenhooff/keytree/mirror"
 	"github.com/jellevandenhooff/keytree/rules"
 	"github.com/jellevandenhooff/keytree/trie"
+	"github.com/jellevandenhooff/keytree/webdata"
 
 	"golang.org/x/net/context"
 )
@@ -114,7 +115,7 @@ func main() {
 
 	s.addHandlers(mux)
 	dkimServer.AddHandlers(mux)
-	mux.Handle("/", http.FileServer(http.Dir("web")))
+	mux.Handle("/", webdata.FileServer())
 
 	server := &http.Server{
 		ReadTimeout: 10 * time.Second,

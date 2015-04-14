@@ -21,6 +21,10 @@ type fetcher struct {
 }
 
 func hashWireTrieNode(node *wire.TrieNode) crypto.Hash {
+	if node == nil {
+		return crypto.EmptyHash
+	}
+
 	if node.Leaf != nil {
 		return crypto.CombineHashes(node.Leaf.NameHash, node.Leaf.EntryHash)
 	}
@@ -42,7 +46,7 @@ func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node, batched *wi
 
 	if err := f.ctx.Err(); err != nil {
 		f.p.Release()
-		return nil, err
+		return f.dedup.Add(old), err
 	}
 
 	if node := f.dedup.FindAndAdd(hash); node != nil {
@@ -59,11 +63,11 @@ func (f *fetcher) fetch(hash crypto.Hash, depth int, old *trie.Node, batched *wi
 		node, err = f.conn.TrieNode(hash, 4)
 		f.p.Release()
 		if err != nil {
-			return old, err
+			return f.dedup.Add(old), err
 		}
 		if hashWireTrieNode(node) != hash {
 			// TODO: don't recompute hash later on?
-			return old, errors.New("bad hash")
+			return f.dedup.Add(old), errors.New("bad hash")
 		}
 	}
 

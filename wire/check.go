@@ -37,8 +37,10 @@ func (n *TrieNode) Check() error {
 	if n.Children != nil {
 		count += 1
 		for i := 0; i < 2; i++ {
-			if err := n.Children[i].Check(); err != nil {
-				return err
+			if n.Children[i] != nil {
+				if err := n.Children[i].Check(); err != nil {
+					return err
+				}
 			}
 		}
 	}

@@ -10,12 +10,12 @@ import (
 // threadsafe.
 type Dedup struct {
 	mu    sync.Mutex
-	nodes map[crypto.Hash]dedupInfo
+	nodes map[crypto.Hash]*dedupInfo
 }
 
 func NewDedup() *Dedup {
 	return &Dedup{
-		nodes: make(map[crypto.Hash]dedupInfo),
+		nodes: make(map[crypto.Hash]*dedupInfo),
 	}
 }
 
@@ -37,7 +37,7 @@ func (d *Dedup) add(node *Node) *Node {
 
 	node.Children[0] = d.add(node.Children[0])
 	node.Children[1] = d.add(node.Children[1])
-	d.nodes[node.Hash()] = dedupInfo{
+	d.nodes[node.Hash()] = &dedupInfo{
 		refs: 1,
 		node: node,
 	}
@@ -67,7 +67,7 @@ func (d *Dedup) AddWithChildrenAlreadyAdded(node *Node) *Node {
 		return entry.node
 	}
 
-	d.nodes[node.Hash()] = dedupInfo{
+	d.nodes[node.Hash()] = &dedupInfo{
 		refs: 1,
 		node: node,
 	}
@@ -96,8 +96,6 @@ func (d *Dedup) FindAndDoNotAdd(hash crypto.Hash) *Node {
 }
 
 func (d *Dedup) remove(node *Node) {
-	return
-
 	if node == nil {
 		return
 	}
@@ -113,8 +111,6 @@ func (d *Dedup) remove(node *Node) {
 }
 
 func (d *Dedup) Remove(node *Node) {
-	return
-
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

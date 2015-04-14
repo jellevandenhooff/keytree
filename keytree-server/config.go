@@ -29,7 +29,7 @@ const updateFlushInterval = 50 * time.Millisecond
 const noFlushUpdateInterval = 10 * time.Second
 const updateBatchBacklog = 200
 
-const fixerParallelism = 100
+const fixerParallelism = 50
 
 const updateQueueSize = 1000
 const reconcileQueueSize = 2000
@@ -99,6 +99,9 @@ func writeDefaultConfig(path string) error {
 		PublicKey:  publicKey,
 		PrivateKey: privateKey,
 		DNSServer:  "8.8.4.4:53",
+		Upstream: []ServerInfo{
+			{Address: "keytree.io", PublicKey: "ed25519-pub(26wj522ncyprkc0t9yr1e1cz2szempbddkay02qqqxqkjnkbnygg)"},
+		},
 	}, "", "  ")
 
 	if err != nil {
