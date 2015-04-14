@@ -30,6 +30,8 @@ func (t *tracker) FullSync(s *wire.SignedRoot, n *trie.Node) {
 	localRoot := t.server.localTrie.root
 	t.server.mu.Unlock()
 
+	// todo: only reconcile updated nodes? some clever trie-based thing could be used for all three cases!
+
 	_ = t.reconcile(localRoot, n, 0)
 }
 
