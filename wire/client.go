@@ -151,9 +151,9 @@ func (c *KeyTreeClient) Submit(update *SignedEntry) error {
 	return c.client.Post("/keytree/submit", update, &reply)
 }
 
-func (c *KeyTreeClient) TrieNode(h crypto.Hash) (*TrieNode, error) {
+func (c *KeyTreeClient) TrieNode(h crypto.Hash, depth int) (*TrieNode, error) {
 	var reply *TrieNode
-	if err := c.client.Get(fmt.Sprintf("/keytree/trienode?hash=%s", h), &reply); err != nil {
+	if err := c.client.Get(fmt.Sprintf("/keytree/trienode?hash=%s&depth=%d", h, depth), &reply); err != nil {
 		return nil, err
 	}
 	if reply == nil {

@@ -20,6 +20,7 @@ type TrieLeaf struct {
 }
 
 type TrieNode struct {
+	Children    *[2]*TrieNode   `json:",omitempty"`
 	ChildHashes *[2]crypto.Hash `json:",omitempty"`
 	Leaf        *TrieLeaf       `json:",omitempty"`
 }

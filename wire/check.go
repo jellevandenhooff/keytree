@@ -30,14 +30,26 @@ func (n *TrieNode) Check() error {
 	if n == nil {
 		return errors.New("missing trie node")
 	}
-	if (n.ChildHashes == nil) == (n.Leaf == nil) {
-		return errors.New("trie node must have either leaf or child hashes")
+	var count = 0
+	if n.ChildHashes != nil {
+		count += 1
 	}
-
+	if n.Children != nil {
+		count += 1
+		for i := 0; i < 2; i++ {
+			if err := n.Children[i].Check(); err != nil {
+				return err
+			}
+		}
+	}
 	if n.Leaf != nil {
+		count += 1
 		if err := n.Leaf.Check(); err != nil {
 			return err
 		}
+	}
+	if count != 1 {
+		return errors.New("trie node must have exactly one kind of node type")
 	}
 	return nil
 }
