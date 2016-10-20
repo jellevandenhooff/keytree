@@ -1,7 +1,7 @@
 Keytree is a next-generation open public-key infrastructure.
 
 Keytree is federated and has no central servers. Anyone can run a Keytree
-server. I run a server on https://keytree.io, and you can run your own server
+server. I ran a server on https://keytree.io, and you can run your own server
 by downloading the code using "go get
 github.com/jellevandenhooff/keytree/keytree-server" and running
 "keytree-server".
